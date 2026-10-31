@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ReplayEntropy } from '../src/entropy.ts';
+import { createGame, executeCore } from '../../../packages/game-core/src/index.ts';
+import type { DeckData } from '../../../packages/protocol/src/index.ts';
+const deck: DeckData = { cards: Array.from({length:20},(_,i)=>({count:1,card:{name:`合成${i}`,kind:'pokemon',hp:60,types:[],stage:'基础',abilities:[],attacks:[],weaknesses:[],resistances:[],retreatCost:0}})) };
+const seed = { format: 'scoped-hmac-v1' as const, seed: '31'.repeat(32), counters: {} };
+const source = () => new ReplayEntropy(seed);
+const game = (entropy: ReplayEntropy) => createGame({ id:'same',players:[{id:'A',name:'A',kind:'ai',deck},{id:'B',name:'B',kind:'ai',deck}] },entropy);
+const shuffle = (zoneId:string) => ({ kind:'shuffle' as const,selection:{container:{kind:'zone' as const,zoneId},range:{mode:'all' as const}} });
+test('卡库、投币与身份流分离，同起点洗牌一致且快照恢复继续原流',()=>{
+ const a=source(),b=source(); let x=game(a),y=game(b);
+ executeCore(x,{kind:'random',mode:'coins',count:17},{kind:'system',purpose:'setup'},a); a.uuid(); a.uuid();
+ x=executeCore(x,shuffle('A:deck'),{kind:'system',purpose:'setup'},a).state;
+ y=executeCore(y,shuffle('A:deck'),{kind:'system',purpose:'setup'},b).state;
+ assert.deepEqual(x.zones['A:deck']!.contents,y.zones['A:deck']!.contents);
+ executeCore(x,shuffle('B:deck'),{kind:'system',purpose:'setup'},a);
+ const restored=new ReplayEntropy(a.snapshot());
+ for(let i=0;i<100;i++) assert.equal(a.scoped('coins').integer(997),restored.scoped('coins').integer(997));
+ assert.equal(a.uuid(),restored.uuid());
+ assert.notDeepEqual(a.snapshot(),b.snapshot());
+});

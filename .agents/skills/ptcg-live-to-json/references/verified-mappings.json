@@ -1,0 +1,1340 @@
+{
+  "schemaVersion": 1,
+  "dataset": {
+    "repository": "https://github.com/duanxr/PTCG-CHS-Datasets",
+    "commit": "3f9648f364caa750a18b56bb8e9d562c4c17689f",
+    "sha256": "0c920c098d5ed6c9f6e00d4042ed83755e6dce702b25130fed11fb2b415256f6"
+  },
+  "englishReference": {
+    "repository": "https://github.com/PokemonTCG/pokemon-tcg-data",
+    "commit": "39a26a144c8b6ef6c2fb17b2c29d0bb7121e3a11",
+    "purpose": "仅识别英文编号及比对基础数值，不作简中卡文来源",
+    "sets": [
+      {
+        "id": "sm1",
+        "ptcgoCode": "SUM"
+      },
+      {
+        "id": "sm35",
+        "ptcgoCode": "SLG"
+      },
+      {
+        "id": "sm4",
+        "ptcgoCode": "CIN"
+      },
+      {
+        "id": "swsh2",
+        "ptcgoCode": "RCL"
+      },
+      {
+        "id": "sve",
+        "ptcgoCode": "SVE"
+      },
+      {
+        "id": "sv1",
+        "ptcgoCode": "SVI"
+      },
+      {
+        "id": "sv2",
+        "ptcgoCode": "PAL"
+      },
+      {
+        "id": "sv3",
+        "ptcgoCode": "OBF"
+      },
+      {
+        "id": "sv3pt5",
+        "ptcgoCode": "MEW"
+      },
+      {
+        "id": "sv4pt5",
+        "ptcgoCode": "PAF"
+      },
+      {
+        "id": "sv6",
+        "ptcgoCode": "TWM"
+      },
+      {
+        "id": "sv6pt5",
+        "ptcgoCode": "SFA"
+      },
+      {
+        "id": "sv7",
+        "ptcgoCode": "SCR"
+      },
+      {
+        "id": "sv8",
+        "ptcgoCode": "SSP"
+      },
+      {
+        "id": "sv8pt5",
+        "ptcgoCode": "PRE"
+      },
+      {
+        "id": "sv9",
+        "ptcgoCode": "JTG"
+      },
+      {
+        "id": "sv10",
+        "ptcgoCode": "DRI"
+      },
+      {
+        "id": "me1",
+        "ptcgoCode": "MEG"
+      },
+      {
+        "id": "me55",
+        "ptcgoCode": "30C"
+      },
+      {
+        "id": "me55c",
+        "ptcgoCode": "30C"
+      }
+    ]
+  },
+  "entries": [
+    {
+      "input": {
+        "set": "SVE",
+        "number": "7",
+        "name": "Basic Darkness Energy",
+        "aliases": [
+          "Darkness Energy"
+        ]
+      },
+      "source": {
+        "name": "基本恶能量",
+        "set": "30thDC",
+        "number": "DAR",
+        "id": 21851,
+        "image": "img/517/40.png",
+        "sha256": "51e72f15e94c37a811d602657295aabfd0e51841ed5e5fb95ffdf1519ca19087"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sve-7",
+        "sha256": "3a0deace07418d993a0eddcf6f0a9768e40e24431c931ebcba424d17b781e75f"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/517/40.png",
+        "imageSha256": "804688066d410c73b643960ff51456e27f429ad0f1850f7a1f25b3aa0be043ab"
+      }
+    },
+    {
+      "input": {
+        "set": "SVE",
+        "number": "2",
+        "name": "Basic Fire Energy",
+        "aliases": [
+          "Fire Energy"
+        ]
+      },
+      "source": {
+        "name": "基本火能量",
+        "set": "30thDC",
+        "number": "FIR",
+        "id": 21847,
+        "image": "img/517/41.png",
+        "sha256": "cc7b998f524cc765705fdedb81f4be19b6c4b9c849675fb744971821ceee4899"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sve-2",
+        "sha256": "ae8e3cde2721b4db7385bcc502db8553b78de35913efe98bcac0ffb13e0a2e45"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/517/41.png",
+        "imageSha256": "34ff9a73d7ee1dc0c2a5365721eea836a36cee69024b2a2392e2391c89be9380"
+      }
+    },
+    {
+      "input": {
+        "set": "SVE",
+        "number": "5",
+        "name": "Basic Psychic Energy",
+        "aliases": [
+          "Psychic Energy"
+        ]
+      },
+      "source": {
+        "name": "基本超能量",
+        "set": "30thDC",
+        "number": "PSY",
+        "id": 21850,
+        "image": "img/517/44.png",
+        "sha256": "b4948872252182467ffd70c5e4fdb996964f09f2bd1519951acae174c3e11998"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sve-5",
+        "sha256": "20ec20e729be875ba345a58b2d30d60e25ed01bd4eb7fc6b2116cd3131b04dbc"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/517/44.png",
+        "imageSha256": "9ce073a2e2c719c6325e43de36a8aa8485f940a6439fea36d6df7e47ffd3a265"
+      }
+    },
+    {
+      "input": {
+        "set": "TWM",
+        "number": "165",
+        "name": "Unfair Stamp",
+        "aliases": [
+          "Unfair Stamp"
+        ]
+      },
+      "source": {
+        "name": "不公印章",
+        "set": "CSV8C",
+        "number": "173/207",
+        "id": 17550,
+        "image": "img/458/472.png",
+        "sha256": "4dad7f8daf212cf2b9b6d87069aff7b36e955e214c61ddd69e3f677e7b3afc18"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv6-165",
+        "sha256": "e12d3e25f0e3a8e69f4169e3bd9b02f80265416c1548d7f24c2052c3e5b69b08"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/458/472.png",
+        "imageSha256": "62e5d76ef80402c1177bac0c31745b5310efb96d58141bee22b38cfe8aeed43a"
+      },
+      "requiredSupplements": {
+        "rulesText": "adacc064a9047156ff112e6b479f2096993bee2e8101b8b012de67ed6f7c65fb"
+      }
+    },
+    {
+      "input": {
+        "set": "PRE",
+        "number": "101",
+        "name": "Buddy-Buddy Poffin",
+        "aliases": [
+          "Buddy-Buddy Poffin"
+        ]
+      },
+      "source": {
+        "name": "友好宝芬",
+        "set": "CSV7C",
+        "number": "177/204",
+        "id": 16343,
+        "image": "img/324/482.png",
+        "sha256": "7edafa5e4575200faedf6bc72d892d0b93c9b731b990bd26ac5a2ba8b8492f00"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv8pt5-101",
+        "sha256": "8026a73ec3ce6e2ff34d180c4b3e16acd1b49936313b47177fb556a57cc95350"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/324/482.png",
+        "imageSha256": "08b0083b269222d9435cfe2e5d5a57dccd00402a4a1657819f53d2731f004076"
+      }
+    },
+    {
+      "input": {
+        "set": "CIN",
+        "number": "91",
+        "name": "Counter Catcher",
+        "aliases": [
+          "Counter Catcher"
+        ]
+      },
+      "source": {
+        "name": "反击捕捉器",
+        "set": "CSV6C",
+        "number": "114/128",
+        "id": 15701,
+        "image": "img/311/313.png",
+        "sha256": "d5d3106becd78108efb9df7e6c77f9f38033ca7f8d735e764c3c85039c0f517f"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sm4-91",
+        "sha256": "9982396793aa06dc813e8eafb3c419e053e0b44c87f8b7c6cf7c56550680a4d7"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/311/313.png",
+        "imageSha256": "ffd03bcf593e68dd0ad1370738f532939351f6afc0800c02dbe9ac26cc2e86ce"
+      }
+    },
+    {
+      "input": {
+        "set": "SFA",
+        "number": "61",
+        "name": "Night Stretcher",
+        "aliases": [
+          "Night Stretcher"
+        ]
+      },
+      "source": {
+        "name": "夜间担架",
+        "set": "CSV8C",
+        "number": "183/207",
+        "id": 17560,
+        "image": "img/458/492.png",
+        "sha256": "81be934c263b022a9a25038041a60011a118f5b4f2746710b6618bdfbb8d4d46"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv6pt5-61",
+        "sha256": "65004a4974509d76d8a4449570ce916018d308e7c17f3c5753fdd44a64342a21"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/458/492.png",
+        "imageSha256": "b119ca9d12cdd2dcc63bd8be334f3c73dedcca4485df7eb7ec8a8754cb6a6633"
+      }
+    },
+    {
+      "input": {
+        "set": "30C",
+        "number": "126",
+        "name": "Poké Pad",
+        "aliases": [
+          "Poké Pad"
+        ]
+      },
+      "source": {
+        "name": "宝可平板",
+        "set": "30thDC",
+        "number": "031/040",
+        "id": 21837,
+        "image": "img/517/30.png",
+        "sha256": "9db7161e723a2788f9e8f83ead57d0daa1b7e2b74a022068b8df2ece49c9742b"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "me55-126",
+        "sha256": "7bc260daee40617e7d42b563deac9f653d2d7efcf7d8fca67149fc9c4658ffde"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/517/30.png",
+        "imageSha256": "2469dbc0f541e0951f2ac86ed7efcb8863a7c668d06397e4a9d6be2373864736"
+      }
+    },
+    {
+      "input": {
+        "set": "SUM",
+        "number": "129",
+        "name": "Rare Candy",
+        "aliases": [
+          "Rare Candy"
+        ]
+      },
+      "source": {
+        "name": "神奇糖果",
+        "set": "CSVM2bC",
+        "number": "016/034",
+        "id": 20651,
+        "image": "img/494/15.png",
+        "sha256": "94ce151d92088594b6b72ea52667de742e663fef451ffc113bce24cc6f58f34a"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sm1-129",
+        "sha256": "df84d1a1c7bf922218b77faca9699f1c65ce912386833228e2a38d7be928501e"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/494/15.png",
+        "imageSha256": "96b7c1c45329b4e810a9773af058a9b5c862518ccb1b6af6bf54a02d88c01838"
+      }
+    },
+    {
+      "input": {
+        "set": "SLG",
+        "number": "68",
+        "name": "Ultra Ball",
+        "aliases": [
+          "Ultra Ball"
+        ]
+      },
+      "source": {
+        "name": "高级球",
+        "set": "CSV1C",
+        "number": "112/127",
+        "id": 11939,
+        "image": "img/244/305.png",
+        "sha256": "30fd2d5a7691e1dfc68c098ff7027cf45bcdda67b3b933ee95f30e3184527fde"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sm35-68",
+        "sha256": "bfead0890656fd5461d69fbccbd528d4c31f8c1a550be6308475d1ccbe0344de"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/244/305.png",
+        "imageSha256": "1826fcf2e2b5cfcf807e95dc0daa396b6714177ba18b544384adb3013d55eab9"
+      }
+    },
+    {
+      "input": {
+        "set": "DRI",
+        "number": "41",
+        "name": "Combusken",
+        "aliases": [
+          "Combusken"
+        ]
+      },
+      "source": {
+        "name": "力壮鸡",
+        "set": "CSV10C",
+        "number": "037/222",
+        "id": 19988,
+        "image": "img/485/100.png",
+        "sha256": "579fdce77213197fb7b5d38dd0b8d1ed99b8103cfe0075824aaee8255665e0d4"
+      },
+      "supplements": {
+        "evolvesFrom": "火稚鸡"
+      },
+      "reference": {
+        "id": "sv10-41",
+        "sha256": "7983d400a5abc1d7024046bff8154122854447dbdbfe4b1211b77786537be845"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/485/100.png",
+        "imageSha256": "1ef29578cd8e900c86957f010c1406525e331a63c09f25a4f5632ad4fda2a3ab"
+      }
+    },
+    {
+      "input": {
+        "set": "SFA",
+        "number": "38",
+        "name": "Fezandipiti ex",
+        "aliases": [
+          "Fezandipiti ex"
+        ]
+      },
+      "source": {
+        "name": "吉雉鸡ex",
+        "set": "CSV8C",
+        "number": "135/207",
+        "id": 17512,
+        "image": "img/458/372.png",
+        "sha256": "daf9989fc30fca97feabb45f5190e28a413b92816cd8d254746cbde7e8b95b17"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv6pt5-38",
+        "sha256": "7357b7b3ab070fc9eba6406aa7481fe220df620bbde5710f3b5d92daa50f3fa7"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/458/372.png",
+        "imageSha256": "fa0631fa0e83837be771ec94df3ea0a5d944dfa00709f10da410e44125c2f9cb"
+      }
+    },
+    {
+      "input": {
+        "set": "PRE",
+        "number": "4",
+        "name": "Budew",
+        "aliases": [
+          "Budew"
+        ]
+      },
+      "source": {
+        "name": "含羞苞",
+        "set": "CSV9.5C",
+        "number": "004/208",
+        "id": 19341,
+        "image": "img/482/9.png",
+        "sha256": "0ad931ac63b583aaa3ac195c73a4da926d4c8e044cc3dec881543965ad7190a8"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv8pt5-4",
+        "sha256": "ca0e8aeeb4734c3bb36d68a69abe3dda737331c8abe7e9e6783d03c1081edfa1"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/9.png",
+        "imageSha256": "12a20958328f9015f883731e88b66158d04ff67dfca6903f4f468c7918de6fb3"
+      }
+    },
+    {
+      "input": {
+        "set": "PRE",
+        "number": "72",
+        "name": "Drakloak",
+        "aliases": [
+          "Drakloak"
+        ]
+      },
+      "source": {
+        "name": "多龙奇",
+        "set": "CSV9.5C",
+        "number": "133/208",
+        "id": 19470,
+        "image": "img/482/348.png",
+        "sha256": "4e86c045fe480bdfc1315946e5d4d316db692c049e1fddffe77bbeccb83fc7c5"
+      },
+      "supplements": {
+        "evolvesFrom": "多龙梅西亚"
+      },
+      "reference": {
+        "id": "sv8pt5-72",
+        "sha256": "b9ec780777de0c2c2c16b7cdc6d075a341cfbbfd8fe1c3be36a3220ca655964e"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/348.png",
+        "imageSha256": "5aaa9b19d821786c5c05564fefcd944fdca0a6ce10f92d68bf90844206e7da63"
+      }
+    },
+    {
+      "input": {
+        "set": "PRE",
+        "number": "73",
+        "name": "Dragapult ex",
+        "aliases": [
+          "Dragapult ex"
+        ]
+      },
+      "source": {
+        "name": "多龙巴鲁托ex",
+        "set": "CSV9.5C",
+        "number": "134/208",
+        "id": 19471,
+        "image": "img/482/351.png",
+        "sha256": "6003c23cf0332dd099251750b4a466774a4fb044978d394cfa357a12a41ff0e9"
+      },
+      "supplements": {
+        "evolvesFrom": "多龙奇"
+      },
+      "reference": {
+        "id": "sv8pt5-73",
+        "sha256": "d5afa0f9f554c1ad138a24d0840f7ecc48c2d28945fe6935aa39ca2b8049b22f"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/351.png",
+        "imageSha256": "ac52946707a73ff14a6c60e2d49f5a604c687dfac88cddd7c7a86f0ef9501f6a"
+      },
+      "requiredSupplements": {
+        "prependRulesText": "c6de983e6d4a0a1b4ab0294c3a6aace6ae8ffaf3a8436e0b3137c2f6dfd8da46"
+      }
+    },
+    {
+      "input": {
+        "set": "PRE",
+        "number": "71",
+        "name": "Dreepy",
+        "aliases": [
+          "Dreepy"
+        ]
+      },
+      "source": {
+        "name": "多龙梅西亚",
+        "set": "CSV9.5C",
+        "number": "132/208",
+        "id": 19469,
+        "image": "img/482/345.png",
+        "sha256": "91704ef4718d7f126931d7cc682d8a848f72fee377749674adcb005c1802a3e8"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv8pt5-71",
+        "sha256": "b4dfb82ce8393f336e14dea33da0e92bedae84d1ea7d0a82af4bc4f62357e815"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/345.png",
+        "imageSha256": "1e611e4968a390674d5b2cd9dce62a1f6f306b2e94b35db0e98431f9ff8571c6"
+      }
+    },
+    {
+      "input": {
+        "set": "TWM",
+        "number": "95",
+        "name": "Munkidori",
+        "aliases": [
+          "Munkidori"
+        ]
+      },
+      "source": {
+        "name": "愿增猿",
+        "set": "CSV8C",
+        "number": "094/207",
+        "id": 17471,
+        "image": "img/458/257.png",
+        "sha256": "dff28c145cbe77844368eab632f5363abb7467f304bcb42271a5d3579ed1728e"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv6-95",
+        "sha256": "7ea00389948b76d8262de2bdbf7edb4e620e60af13ef832ba8c62d256c45597e"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/458/257.png",
+        "imageSha256": "204e38e5ea38aa89747d15376bdecd0fe5390adc885c67c0a3ae5a8c0de0ce74"
+      }
+    },
+    {
+      "input": {
+        "set": "JTG",
+        "number": "24",
+        "name": "Blaziken ex",
+        "aliases": [
+          "Blaziken ex"
+        ]
+      },
+      "source": {
+        "name": "火焰鸡ex",
+        "set": "CSV7C",
+        "number": "038/204",
+        "id": 16204,
+        "image": "img/324/105.png",
+        "sha256": "c42c5bc45dc6eb948a7953325c4542cf025f70579ad3a54ad065decc9e376441"
+      },
+      "supplements": {
+        "evolvesFrom": "力壮鸡"
+      },
+      "reference": {
+        "id": "sv9-24",
+        "sha256": "475efd1d92a36e7b30c26969421f5e0ff17e962abe16a5de59570b01a0829c47"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/324/105.png",
+        "imageSha256": "94e4654138ac0e722d917f21d10ec07ed56e807baf54677b133e2e973ee375f2"
+      }
+    },
+    {
+      "input": {
+        "set": "DRI",
+        "number": "40",
+        "name": "Torchic",
+        "aliases": [
+          "Torchic"
+        ]
+      },
+      "source": {
+        "name": "火稚鸡",
+        "set": "CSV10C",
+        "number": "036/222",
+        "id": 19987,
+        "image": "img/485/97.png",
+        "sha256": "a31d51921db2c9931395b438c5c5c58802dbb4ede2c5954775a85697db4e94a8"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv10-40",
+        "sha256": "34afe931ae0e0f3b1f4279e9b6a54ca93ff3d86ccda9524010f825318da146e0"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/485/97.png",
+        "imageSha256": "4065b1c992f92c8cd1146c115f1236fc0a6bce6ac64a1c4adf08308f94ba5866"
+      }
+    },
+    {
+      "input": {
+        "set": "OBF",
+        "number": "192",
+        "name": "Pokémon League Headquarters",
+        "aliases": [
+          "Pokémon League Headquarters"
+        ]
+      },
+      "source": {
+        "name": "宝可梦联盟总部",
+        "set": "CSV6C",
+        "number": "128/128",
+        "id": 15715,
+        "image": "img/311/355.png",
+        "sha256": "1cf0eebe607f8635090cc845768313e954a53500558548b05377b92a6112cc4a"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv3-192",
+        "sha256": "4db24500af8be117b196fa67e1eb8d4fd59e13e51a9cccb34fdc72f0cfe529ad"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/311/355.png",
+        "imageSha256": "bd945b56e49b6498b74cfe429fcc187f1e7e514e132bd37bb9fda0bc346c9360"
+      }
+    },
+    {
+      "input": {
+        "set": "PAL",
+        "number": "174",
+        "name": "Calamitous Snowy Mountain",
+        "aliases": [
+          "Calamitous Snowy Mountain"
+        ]
+      },
+      "source": {
+        "name": "灾祸雪山",
+        "set": "CSV3C",
+        "number": "129/130",
+        "id": 13292,
+        "image": "img/270/356.png",
+        "sha256": "8c60432dd04a59593419e9774f2176c2108d33e4833c6609695865e01603f9e9"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv2-174",
+        "sha256": "7848e92bc6965fb0f618c5b21999d3fb5b895865be2da7967f020cfe7ffef81c"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/270/356.png",
+        "imageSha256": "721979e7cb1f137c8adc29b2d2e5509ddbbee0c3b3a491e546069a4cc5a9f797"
+      }
+    },
+    {
+      "input": {
+        "set": "TWM",
+        "number": "153",
+        "name": "Jamming Tower",
+        "aliases": [
+          "Jamming Tower"
+        ]
+      },
+      "source": {
+        "name": "阻碍之塔",
+        "set": "CSV8C",
+        "number": "203/207",
+        "id": 17580,
+        "image": "img/458/548.png",
+        "sha256": "ff60b44e5c687679f14b0725bfdc9fed2ab357f2793dacc74faebf928ff4db14"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv6-153",
+        "sha256": "220d9eaf2714dfeb362f2d2e44770358a1763b82cdb8cee885fe2809723ba2b2"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/458/548.png",
+        "imageSha256": "4f61a16a2cd00eb75dcc7c72e78e2323b517c4d947acb351300b6d913575cf6c"
+      }
+    },
+    {
+      "input": {
+        "set": "PAL",
+        "number": "185",
+        "name": "Iono",
+        "aliases": [
+          "Iono"
+        ]
+      },
+      "source": {
+        "name": "奇树",
+        "set": "CSV3C",
+        "number": "123/130",
+        "id": 13286,
+        "image": "img/270/338.png",
+        "sha256": "f205ad485684a341f61f4496e07b7887a3c57adda55adb1d8370ca9a6d34132a"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv2-185",
+        "sha256": "521a4877d4112d718712929d878ad2282520573299a997370a7020aaf0479fbe"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/270/338.png",
+        "imageSha256": "ab2f59b90e1e632148849534dc897f12b9b807ecf897d3c77d070756577a5a36"
+      }
+    },
+    {
+      "input": {
+        "set": "RCL",
+        "number": "154",
+        "name": "Boss's Orders",
+        "aliases": [
+          "Boss's Orders"
+        ]
+      },
+      "source": {
+        "name": "老大的指令",
+        "set": "CSV4C",
+        "number": "125/129",
+        "id": 14364,
+        "image": "img/285/344.png",
+        "sha256": "abd2f50e837c1da2db0dc5a11c8c88bec060ceb08a7c433bbd63c2c62028849d"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "swsh2-154",
+        "sha256": "3a49003a8c37cd68a7ae397fb327802b77689f8a5ce2cace06a1e982406fcc62"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/285/344.png",
+        "imageSha256": "44abb6a70590e7d46b075142232259a04a2eb9985231fc864423ab16a215402b"
+      }
+    },
+    {
+      "input": {
+        "set": "MEG",
+        "number": "119",
+        "name": "Lillie's Determination",
+        "aliases": [
+          "Lillie's Determination"
+        ]
+      },
+      "source": {
+        "name": "莉莉艾的决心",
+        "set": "30thDC",
+        "number": "040/040",
+        "id": 21846,
+        "image": "img/517/39.png",
+        "sha256": "eb65d8f9efd9a29e5ea3350b924a74c68073b461f40873f8591b778b1cb4c912"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "me1-119",
+        "sha256": "154b7f5ac9e5b2569c13e5fa94c34c0383a15943324687c853ee3b712877babf"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/517/39.png",
+        "imageSha256": "fe17c964bbc05d7f915459920dfe7d91c9cd8ac52ff5cbd60f718285743cd89a"
+      }
+    },
+    {
+      "input": {
+        "set": "SCR",
+        "number": "133",
+        "name": "Crispin",
+        "aliases": [
+          "Crispin"
+        ]
+      },
+      "source": {
+        "name": "赤松",
+        "set": "CSV9C",
+        "number": "196/208",
+        "id": 18766,
+        "image": "img/475/527.png",
+        "sha256": "4325c0a68d223e4dca412ac085bbcb2ca18deb0c0c6cc7550d71f8be8f20f7b7"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv7-133",
+        "sha256": "0ca7f4d91adb2e19cca5f720c034bbb510cdd35fdb0b804249d18e640b41c24c"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/475/527.png",
+        "imageSha256": "b245622c39d41f14c25a974775715b928d44beb136500ea6d2c0b16bd7a4c3c4"
+      }
+    },
+    {
+      "input": {
+        "set": "SVE",
+        "number": "1",
+        "name": "Basic Grass Energy",
+        "aliases": [
+          "Grass Energy"
+        ]
+      },
+      "source": {
+        "name": "基本草能量",
+        "set": "30thDC",
+        "number": "GRA",
+        "id": 21848,
+        "image": "img/517/42.png",
+        "sha256": "635e1737aa93d107bf39d69f38137313c7fe384ddd105a97fdb8c0735c48bf1c"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sve-1",
+        "sha256": "0412f0bb45447e7f348f2e88589f054965cf02c266e0d0029c60b5d08593f7f4"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/517/42.png",
+        "imageSha256": "c19cfad98850ff115562fc300a5d4e047a9d896237b2c9652f2b6d48718011a6"
+      }
+    },
+    {
+      "input": {
+        "set": "SUM",
+        "number": "123",
+        "name": "Nest Ball",
+        "aliases": [
+          "Nest Ball"
+        ]
+      },
+      "source": {
+        "name": "巢穴球",
+        "set": "CSVM2bC",
+        "number": "014/034",
+        "id": 20649,
+        "image": "img/494/13.png",
+        "sha256": "a616c6c501599a2d709f7abdf2c5e2b90a88a0b400f0cc0290d5e81551fc6a4d"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sm1-123",
+        "sha256": "4f28ed2d6fcb1ab191d5554b5b683bbcbe13205cb0493a8b9d7f6e9a2c642281"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/494/13.png",
+        "imageSha256": "1a3bbf4b0788d8d80ff40673435d3f0396e6ca9f62335607f3d9a6018b346c92"
+      }
+    },
+    {
+      "input": {
+        "set": "PRE",
+        "number": "35",
+        "name": "Duskull",
+        "aliases": [
+          "Duskull"
+        ]
+      },
+      "source": {
+        "name": "夜巡灵",
+        "set": "CSV9.5C",
+        "number": "069/208",
+        "id": 19406,
+        "image": "img/482/174.png",
+        "sha256": "7e01cecc47196c2f56c9a248d9c81f5c12f61aab4cefeeb11071eb75102a8366"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv8pt5-35",
+        "sha256": "120ffd92b675c46eb126216376b00ffdad057bc4220311cebf57d8669e40c83e"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/174.png",
+        "imageSha256": "d0b32f06160ed253b73f0ce23e42b9a4ec33779183953093a60cb94523de6275"
+      }
+    },
+    {
+      "input": {
+        "set": "DRI",
+        "number": "23",
+        "name": "Arboliva ex",
+        "aliases": [
+          "Arboliva ex"
+        ]
+      },
+      "source": {
+        "name": "奥利瓦ex",
+        "set": "CSV10C",
+        "number": "022/222",
+        "id": 19973,
+        "image": "img/485/61.png",
+        "sha256": "fead7da50aa7ca3d82928568ec7417123deb57db45e92d04391212e6109d6c1a"
+      },
+      "supplements": {
+        "evolvesFrom": "奥利纽"
+      },
+      "reference": {
+        "id": "sv10-23",
+        "sha256": "2c9e3e89c19b2d5f71289ff4b85fd13d5f4f042246ab67d0ebebd640c807956f"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/485/61.png",
+        "imageSha256": "e1d2f9ce46e8b97d8c13e84d84509e4179fe42c05b992cc4ac057de8cadf6af8"
+      }
+    },
+    {
+      "input": {
+        "set": "SVI",
+        "number": "22",
+        "name": "Dolliv",
+        "aliases": [
+          "Dolliv"
+        ]
+      },
+      "source": {
+        "name": "奥利纽",
+        "set": "CSV1C",
+        "number": "015/127",
+        "id": 11842,
+        "image": "img/244/38.png",
+        "sha256": "e751669b8828ec2f9e7863223640867bc56ba4175cc7519d8d27ae238efc5b1c"
+      },
+      "supplements": {
+        "evolvesFrom": "迷你芙"
+      },
+      "reference": {
+        "id": "sv1-22",
+        "sha256": "aa2d5371d108391a8fd91aab750a53b09c87fa1f6d338af902a88f534285d01b"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/244/38.png",
+        "imageSha256": "cb027f516e89b85ac066c02c8f9d1be65235abcffa1cad62915234ecd26a55e1"
+      }
+    },
+    {
+      "input": {
+        "set": "SFA",
+        "number": "19",
+        "name": "Dusclops",
+        "aliases": [
+          "Dusclops"
+        ]
+      },
+      "source": {
+        "name": "彷徨夜灵",
+        "set": "CSV9.5C",
+        "number": "070/208",
+        "id": 19407,
+        "image": "img/482/177.png",
+        "sha256": "cfb6c964e3ed31c381e58489fa3db50107a421191f078f481a997730b07a48f2"
+      },
+      "supplements": {
+        "evolvesFrom": "夜巡灵"
+      },
+      "reference": {
+        "id": "sv6pt5-19",
+        "sha256": "7f1a53bd87a7e72dd9270c0606309e2421982481b3173a330fa656781efbf949"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/177.png",
+        "imageSha256": "e9512da09e1bf5ce54c8fc34842640296c316b683d36fe27feaafd03926ecf51"
+      }
+    },
+    {
+      "input": {
+        "set": "PAF",
+        "number": "75",
+        "name": "Squawkabilly ex",
+        "aliases": [
+          "Squawkabilly ex"
+        ]
+      },
+      "source": {
+        "name": "怒鹦哥ex",
+        "set": "CSV2C",
+        "number": "105/128",
+        "id": 12763,
+        "image": "img/253/290.png",
+        "sha256": "eacdb1ab42f8d9e282d29a5b46d51e139bac1c34aea9cb54927fff0616ed88ef"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv4pt5-75",
+        "sha256": "90d4d9671742a2d44bdbec33eef57bbbdd6f03c70c1db4a5cc50539de5159eb7"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/253/290.png",
+        "imageSha256": "12aebf3f6b15d0de619eaf01ecc391aef43e7fa6cd799ba73c2050cf3fdc5404"
+      }
+    },
+    {
+      "input": {
+        "set": "SSP",
+        "number": "76",
+        "name": "Latias ex",
+        "aliases": [
+          "Latias ex"
+        ]
+      },
+      "source": {
+        "name": "拉帝亚斯ex",
+        "set": "CSV9C",
+        "number": "078/208",
+        "id": 18648,
+        "image": "img/475/213.png",
+        "sha256": "52a1325c9f6cface94f8090b786c35f1930f560b718d322718d6a219cc12400c"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv8-76",
+        "sha256": "2e1383710ae4b9062014b4ad1cf246d21597a916ad74810f58c81bf5b3a3c702"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/475/213.png",
+        "imageSha256": "304edeafab081cab28429e70ba75f3e5e94df010dd6630233109de50492e17f1"
+      }
+    },
+    {
+      "input": {
+        "set": "SVI",
+        "number": "118",
+        "name": "Hawlucha",
+        "aliases": [
+          "Hawlucha"
+        ]
+      },
+      "source": {
+        "name": "摔角鹰人",
+        "set": "CSV9.5C",
+        "number": "095/208",
+        "id": 19432,
+        "image": "img/482/246.png",
+        "sha256": "b446f723caeab54787c40124bf51555816c92f0091ea760225231ab923f525c5"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv1-118",
+        "sha256": "921386e6b0cd773540f43a7b3ef20cf2c5e7f9751dbd36e89329be8390d71937"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/246.png",
+        "imageSha256": "195b16046914798b400605d0f619dcaf514f4a1afc72a892adf3c2a059c0fb67"
+      }
+    },
+    {
+      "input": {
+        "set": "TWM",
+        "number": "141",
+        "name": "Bloodmoon Ursaluna ex",
+        "aliases": [
+          "Bloodmoon Ursaluna ex"
+        ]
+      },
+      "source": {
+        "name": "月月熊 赫月ex",
+        "set": "CSV9.5C",
+        "number": "154/208",
+        "id": 19491,
+        "image": "img/482/405.png",
+        "sha256": "6cad9b0baae7b3cdde4d46c0a47aa952bb543ef5aa877262ae54b34615292697"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv6-141",
+        "sha256": "d4ec31e6dc190405b259866e019e7821fa524dd41a6720cc4646cbf3d9765a2c"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/405.png",
+        "imageSha256": "92e381714ffdbdd9cd2739ade2dc98a72b4218e26bfe9f96d57dab0c3b44ee78"
+      }
+    },
+    {
+      "input": {
+        "set": "MEW",
+        "number": "151",
+        "name": "Mew ex",
+        "aliases": [
+          "Mew ex"
+        ]
+      },
+      "source": {
+        "name": "梦幻ex",
+        "set": "151C",
+        "number": "151/151",
+        "id": 11514,
+        "image": "img/246/428.png",
+        "sha256": "5329775a1b2c2ef37e8d5cb88189778b0fa4431bb370b147f22b24a82158cf85"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv3pt5-151",
+        "sha256": "d237c61bb785426bb325231061f5e4771b018a6ee9ac9868e5a6b1a88d3992d9"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/246/428.png",
+        "imageSha256": "9199cd775d5c3ca4419cf969ff98d7eb2b9023dc65152239437ed04a8d53a171"
+      }
+    },
+    {
+      "input": {
+        "set": "DRI",
+        "number": "21",
+        "name": "Smoliv",
+        "aliases": [
+          "Smoliv"
+        ]
+      },
+      "source": {
+        "name": "迷你芙",
+        "set": "CSV10C",
+        "number": "020/222",
+        "id": 19971,
+        "image": "img/485/55.png",
+        "sha256": "5b6ddb89d052245681ee2aedc363d44a577e77ab758b57752cce14eecd0631a7"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv10-21",
+        "sha256": "db5d4f9bc05c618b1c0bf4906618e4f7b2e31ea127328aa2655322c12b77f0d0"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/485/55.png",
+        "imageSha256": "ea9115c4924e3b9f4d7f4f3d46e9fe3ba351d4863cc6492f4f4f6ccc134f174e"
+      }
+    },
+    {
+      "input": {
+        "set": "SFA",
+        "number": "20",
+        "name": "Dusknoir",
+        "aliases": [
+          "Dusknoir"
+        ]
+      },
+      "source": {
+        "name": "黑夜魔灵",
+        "set": "CSV9.5C",
+        "number": "071/208",
+        "id": 19408,
+        "image": "img/482/180.png",
+        "sha256": "7463885daf0378f26985e986d37ff2aa20b5ccf34a9fef91b84f3910bddda965"
+      },
+      "supplements": {
+        "evolvesFrom": "彷徨夜灵"
+      },
+      "reference": {
+        "id": "sv6pt5-20",
+        "sha256": "bb3389e2c5871c9d7a69789883d46de692bc6c6d958b8c478a6104b6cce1d6fa"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/180.png",
+        "imageSha256": "a8d546608d93317419e217c4d99143d7a20dae7b1607e672b3c6fb8b093d6be0"
+      }
+    },
+    {
+      "input": {
+        "set": "PAL",
+        "number": "190",
+        "name": "Jet Energy",
+        "aliases": [
+          "Jet Energy"
+        ]
+      },
+      "source": {
+        "name": "喷射能量",
+        "set": "CSV9.5C",
+        "number": "206/208",
+        "id": 19543,
+        "image": "img/482/543.png",
+        "sha256": "668423aba3609f0b3cb9a3e66eaf45da111c9fdfda2fb8d2fdac64f7734e4fad"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv2-190",
+        "sha256": "2b7363684941782071357d6683e82d6fd3a29d30a3e3a923ad6616f597c751bf"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/543.png",
+        "imageSha256": "25ea142ce06a3cf29cee3b12cc8e827834d61947c14437d9eb6a60cda976943d"
+      }
+    },
+    {
+      "input": {
+        "set": "SCR",
+        "number": "136",
+        "name": "Grand Tree",
+        "aliases": [
+          "Grand Tree"
+        ]
+      },
+      "source": {
+        "name": "伟大巨树",
+        "set": "CSV9C",
+        "number": "205/208",
+        "id": 18775,
+        "image": "img/475/554.png",
+        "sha256": "9d08bb353ec92a806fdd351528dc950043407d54de5d5656fad54f7730b1c50c"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv7-136",
+        "sha256": "cf60431537b253a8e6c337a0a0103c3ec778a9e47103328708ebe9b10bc0f831"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/475/554.png",
+        "imageSha256": "51b51fcb3dca4b350cb44470466fdd27f070baad69d05afa074890956d475757"
+      },
+      "requiredSupplements": {
+        "rulesText": "adacc064a9047156ff112e6b479f2096993bee2e8101b8b012de67ed6f7c65fb"
+      }
+    },
+    {
+      "input": {
+        "set": "SFA",
+        "number": "57",
+        "name": "Colress's Tenacity",
+        "aliases": [
+          "Colress's Tenacity"
+        ]
+      },
+      "source": {
+        "name": "阿克罗玛的执念",
+        "set": "CSV9.5C",
+        "number": "184/208",
+        "id": 19521,
+        "image": "img/482/479.png",
+        "sha256": "95db1745ebb3dff6c787a7c55e336978e271412561bd2809ff98a1d44f102613"
+      },
+      "supplements": {},
+      "reference": {
+        "id": "sv6pt5-57",
+        "sha256": "4b739029128773a71dd9222f16d9a2233889b0e1cd071f66f40bebb0a86dcb1b"
+      },
+      "reviewed": true,
+      "evidence": {
+        "record": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/ptcg_chs_infos.json",
+        "image": "https://raw.githubusercontent.com/duanxr/PTCG-CHS-Datasets/3f9648f364caa750a18b56bb8e9d562c4c17689f/img/482/479.png",
+        "imageSha256": "72b32f614f6708dad2a661905243840834a74d289af2309712e974ae9d7a590a"
+      }
+    }
+  ]
+}

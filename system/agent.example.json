@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "model": "gpt-6.1-terra",
+  "reasoningEffort": "medium",
+  "fast": false,
+  "timeoutMs": 120000,
+  "maxRetries": 2,
+  "connection": {
+    "kind": "local_codex_credentials"
+  }
+}

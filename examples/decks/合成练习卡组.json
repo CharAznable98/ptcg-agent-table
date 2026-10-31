@@ -1,0 +1,47 @@
+{
+  "name": "合成练习卡组（非官方卡）",
+  "cards": [
+    {
+      "count": 4,
+      "card": {
+        "kind": "pokemon",
+        "name": "叶芽（合成练习卡）",
+        "hp": 20,
+        "types": [
+          "草"
+        ],
+        "stage": "基础",
+        "abilities": [],
+        "attacks": [
+          {
+            "name": "轻撞",
+            "energyCost": [
+              {
+                "type": "草",
+                "count": 1
+              }
+            ],
+            "damageText": "10",
+            "text": ""
+          }
+        ],
+        "weaknesses": [],
+        "resistances": [],
+        "retreatCost": 1,
+        "tags": [
+          "合成练习卡",
+          "非官方卡"
+        ]
+      }
+    },
+    {
+      "count": 56,
+      "card": {
+        "kind": "energy",
+        "subtype": "basic",
+        "name": "基本草能量",
+        "energyType": "草"
+      }
+    }
+  ]
+}

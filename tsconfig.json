@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "target": "ES2023", "module": "NodeNext", "moduleResolution": "NodeNext",
+    "strict": true, "types": ["node"], "noUncheckedIndexedAccess": true, "exactOptionalPropertyTypes": true,
+    "allowImportingTsExtensions": true, "noEmit": true, "skipLibCheck": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["packages/**/*.ts", "apps/server/**/*.ts", "scripts/**/*.ts"]
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "PTCG Live 卡表转换"
+  short_description: "将 PTCG Live 文本卡表经 duanxr 简中数据转换为本项目 JSON"
+  default_prompt: "使用 $ptcg-live-to-json 把这份 PTCG Live 卡表转换为可导入本项目的简中卡组 JSON。"

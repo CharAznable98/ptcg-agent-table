@@ -1,0 +1,167 @@
+[
+  {
+    "id": "index",
+    "url": "https://www.pokemon.cn/tcg-rules-howtoplay",
+    "title": "玩法规则 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 39754,
+    "sha256": "3187c5374c1e06942a50ab4fb2e958ddc0666f70d5a48c74bb5f0ef821b1a638",
+    "original_filename": "index.html"
+  },
+  {
+    "id": "basic_rules01",
+    "url": "https://www.pokemon.cn/tcg-rules-howtoplay?pageName=basic_rules01/",
+    "title": "卡牌种类和卡面介绍 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 50025,
+    "sha256": "6e86ac15467d17c5684a1ebfc01a4db0da8d54fd1651a4ad904e92a1b5fbecd4",
+    "original_filename": "basic_rules01.html"
+  },
+  {
+    "id": "basic_rules02",
+    "url": "https://www.pokemon.cn/tcg-rules-howtoplay?pageName=basic_rules02/",
+    "title": "对战所需物品 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 37497,
+    "sha256": "60031846b005de7592046e1706ec08f1ef3baadcfcec0deabc270df70ae5067e",
+    "original_filename": "basic_rules02.html"
+  },
+  {
+    "id": "basic_rules03",
+    "url": "https://www.pokemon.cn/tcg-rules-howtoplay?pageName=basic_rules03/",
+    "title": "场上各区域名称 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 37863,
+    "sha256": "250bc58d926d6a67e10a304e109d72f22616d26be2b13200d19464d3739ea157",
+    "original_filename": "basic_rules03.html"
+  },
+  {
+    "id": "basic_rules04",
+    "url": "https://www.pokemon.cn/tcg-rules-howtoplay?pageName=basic_rules04/",
+    "title": "对战准备 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 40330,
+    "sha256": "bc90e15af5a0149906013ed96366d68f152779b31aad976657f0af57ba02e5b4",
+    "original_filename": "basic_rules04.html"
+  },
+  {
+    "id": "basic_rules05",
+    "url": "https://www.pokemon.cn/tcg-rules-howtoplay?pageName=basic_rules05/",
+    "title": "对战方式 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 47141,
+    "sha256": "880133302c098a570a23217b94f408c6c9914b4656e16a89c9c16d98ea3c6bf2",
+    "original_filename": "basic_rules05.html"
+  },
+  {
+    "id": "basic_rules06",
+    "url": "https://www.pokemon.cn/tcg-rules-howtoplay?pageName=basic_rules06/",
+    "title": "宝可梦的“昏厥”和获胜方式 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 37588,
+    "sha256": "cb637a3af46439b81de0c8621fdfb696f4376cf3a558bca1ab4ac6b7cdc8c7ac",
+    "original_filename": "basic_rules06.html"
+  },
+  {
+    "id": "basic_rules07",
+    "url": "https://www.pokemon.cn/tcg-rules-howtoplay?pageName=basic_rules07/",
+    "title": "宝可梦检查和特殊状态 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 48508,
+    "sha256": "472c7b445bd2052635d2d0e260f50e050feb5a3147260f5cae798aa0ee74b8a0",
+    "original_filename": "basic_rules07.html"
+  },
+  {
+    "id": "basic_rules08",
+    "url": "https://www.pokemon.cn/tcg-rules-howtoplay?pageName=basic_rules08/",
+    "title": "更多规则 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 36164,
+    "sha256": "efb8e9d64244dd00d323844d14dbc8ab892ee2a436b151ce9142782108a4af27",
+    "original_filename": "basic_rules08.html"
+  },
+  {
+    "id": "advanced-landing",
+    "url": "https://www.pokemon.cn/misc/21231.html",
+    "title": "进阶玩家向规则指南 Ver 3.1.0 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 89060,
+    "sha256": "23918452715cdc493855bc4fe3ffcf7381f6fd5a5021fe79c148184c77591b41",
+    "original_filename": "advanced-landing.html"
+  },
+  {
+    "id": "tournament-landing",
+    "url": "https://www.pokemon.cn/misc/21184.html",
+    "title": "赛场规则 Ver 3.1.0 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 70993,
+    "sha256": "9ce60c377aac60ce190b9cbe9fed0248ce764d068eacd57e44f1ed64cca86efc",
+    "original_filename": "tournament-landing.html"
+  },
+  {
+    "id": "penalties-landing",
+    "url": "https://www.pokemon.cn/misc/21290.html",
+    "title": "赛事处罚方案 速查表 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 46644,
+    "sha256": "ae7c25536168bb68baa4611e0d81499cab976b50b0459ba9c95b618f139494e2",
+    "original_filename": "penalties-landing.html"
+  },
+  {
+    "id": "deck-building",
+    "url": "https://www.pokemon.cn/tcg-deck-first-deck",
+    "title": "第一次构筑卡组的方式 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 44609,
+    "sha256": "c008073f25b5241e14c85d8587ea46248ea1a6a26846d71bda072f8df4ddc685",
+    "original_filename": "deck-building.html"
+  },
+  {
+    "id": "extra-cards",
+    "url": "https://www.pokemon.cn/tcg-rules-regulation-extra/",
+    "title": "其他赛制中可使用的特别卡牌 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 46966,
+    "sha256": "ce3724a468f828abc1ee43c179d989f6ab5e042b5594c86b8cd562031b3554a1",
+    "original_filename": "extra-cards.html"
+  },
+  {
+    "id": "format",
+    "url": "https://www.pokemon.cn/tcg-rules-regulation/",
+    "title": "赛制 | The official Pokémon Website in China",
+    "snapshot_date": "2026-10-27",
+    "bytes": 38934,
+    "sha256": "b9f213400991dcdd1cbbe395b0f3a70407daada095efc6368d694b0cf2b77ffc",
+    "original_filename": "format.html"
+  },
+  {
+    "id": "advanced-pdf",
+    "url": "https://image.pokemon.com.cn/wp-content/uploads/2025/12/20251204153741105.pdf",
+    "landing_url": "https://www.pokemon.cn/misc/21231.html",
+    "snapshot_date": "2026-10-27",
+    "bytes": 910379,
+    "sha256": "27bda43d8cb78ed800891c6793e5efd945ac64d94a83ceff8adaed10e8f67419",
+    "pages": 76,
+    "original_filename": "advanced-v3.1.0.pdf"
+  },
+  {
+    "id": "tournament-pdf",
+    "url": "https://image.pokemon.com.cn/wp-content/uploads/2026/04/e3491fcdf7a6b5e486f770772cbcfa82.pdf",
+    "landing_url": "https://www.pokemon.cn/misc/21184.html",
+    "snapshot_date": "2026-10-27",
+    "bytes": 334035,
+    "sha256": "b5f0c8b87d928f5ca640f1f021863eb78aafcc8216067883e7b2075a25ab1ac6",
+    "pages": 22,
+    "original_filename": "tournament-v3.1.0.pdf"
+  },
+  {
+    "id": "penalties-pdf",
+    "url": "https://image.pokemon.com.cn/wp-content/uploads/2025/12/20251204154136821.pdf",
+    "landing_url": "https://www.pokemon.cn/misc/21290.html",
+    "snapshot_date": "2026-10-27",
+    "bytes": 143883,
+    "sha256": "b32a163c84a1eba26434e2bfe4b8a6a0e7187b1cc1a128e539b988c5f972c554",
+    "pages": 1,
+    "original_filename": "penalties.pdf"
+  }
+]

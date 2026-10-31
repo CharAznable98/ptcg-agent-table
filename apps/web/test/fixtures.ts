@@ -1,0 +1,115 @@
+import type {
+  MatchView,
+  CardData,
+} from "../../../packages/protocol/src/index.ts";
+export const card: CardData = {
+  kind: "pokemon",
+  name: "叶芽",
+  hp: 80,
+  types: ["草"],
+  stage: "基础",
+  abilities: [],
+  attacks: [
+    {
+      name: "撞击",
+      energyCost: [{ type: "无色", count: 1 }],
+      damageText: "20",
+      text: "普通的招式说明。",
+    },
+  ],
+  weaknesses: [],
+  resistances: [],
+  retreatCost: 1,
+};
+export const view: MatchView = {
+  mode: "local",
+  id: "match-test",
+  revision: 12,
+  viewer: "A",
+  players: [
+    { id: "A", name: "玩家 A", kind: "human" },
+    { id: "B", name: "玩家 B", kind: "human" },
+  ],
+  zones: [
+    {
+      id: "A:hand",
+      kind: "hand",
+      playerId: "A",
+      layout: "sequence",
+      defaultVisibility: { mode: "players", playerIds: ["A"] },
+      items: [
+        {
+          kind: "card",
+          position: { zoneId: "A:hand", index: 0 },
+          card,
+          ownerId: "A",
+          markers: {},
+        },
+        {
+          kind: "card",
+          position: { zoneId: "A:hand", index: 1 },
+          card,
+          ownerId: "A",
+          markers: {},
+        },
+      ],
+    },
+    {
+      id: "A:deck",
+      kind: "deck",
+      playerId: "A",
+      layout: "sequence",
+      defaultVisibility: { mode: "hidden" },
+      items: [{ kind: "hidden", position: { zoneId: "A:deck", index: 0 } }],
+    },
+    {
+      id: "A:bench",
+      kind: "bench",
+      playerId: "A",
+      layout: "slots",
+      defaultVisibility: { mode: "public" },
+      items: [
+        {
+          kind: "group",
+          position: { zoneId: "A:bench", index: 0 },
+          stack: [
+            {
+              kind: "card",
+              position: {
+                zoneId: "A:bench",
+                index: 0,
+                member: { relation: "stack", index: 0 },
+              },
+              card,
+              ownerId: "A",
+              markers: {},
+            },
+          ],
+          attached: [],
+          state: { damageCounters: 2, specialConditions: [], markers: {} },
+        },
+        null,
+        null,
+        null,
+        null,
+      ],
+    },
+  ],
+  flow: {
+    phase: "turn",
+    turnOwner: "A",
+    operator: "A",
+    turnNumber: 2,
+    firstPlayer: "A",
+    choice: null,
+    handoffReturnTo: null,
+    proposedResult: null,
+    result: null,
+  },
+  playerMarkers: { A: {} },
+  events: [],
+  cursor: "0",
+  dispute: null,
+  runtime: { status: "idle" },
+  summaries: {},
+};
