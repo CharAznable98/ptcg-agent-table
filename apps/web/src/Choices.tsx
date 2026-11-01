@@ -240,7 +240,7 @@ export function SetupChoice({
             </>
           )}
           {choice.kind === "handoff" && (
-            <p>使用右侧牌桌操作完成选择后，将操作权交还。</p>
+            <p>在牌桌完成选择，或点击「继续处理」。</p>
           )}
         </div>
       )}

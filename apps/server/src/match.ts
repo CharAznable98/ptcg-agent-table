@@ -13,6 +13,7 @@ import { ApiError, canonical, clone, Journal, now, uid } from './storage.ts';
 import { publicInPlayFacts, type InPlayFact } from './in-play-facts.ts';
 import { ReplayEntropy, type RandomState } from './entropy.ts';
 import { cardContext } from '../../../packages/agent/src/card-context.ts';
+import { humanActionRecoveryPoints } from './human-action-recovery.ts';
 
 const players: PlayerId[] = ['A', 'B'];
 const other = (id: PlayerId): PlayerId => id === 'A' ? 'B' : 'A';
@@ -63,6 +64,12 @@ export interface MatchOptions { directory: string; entropy?: Entropy }
 export class MatchRuntime implements MatchPort {
   readonly directory: string; readonly journal: Journal<MatchRecord>; entropy: Entropy;
   readonly changes = new EventEmitter(); records: MatchRecord[] = []; state!: GameState; meta!: MatchMeta;
+  /** 人类执行代理独占该席位的写入；AI 临时接权仍按原流程运行。 */
+  readonly humanActionLocks = new Map<PlayerId, { id: string; playerId: PlayerId; label: string; mode?: 'manual' }>();
+  get humanActionLock(): { id: string; playerId: PlayerId; label: string } | null { return this.humanActionLocks.get(this.state.flow.operator) ?? this.humanActionLocks.values().next().value ?? null; }
+  lockHumanAction(action: { id: string; playerId: PlayerId; label: string; mode?: 'manual' }): void { this.humanActionLocks.set(action.playerId, action); }
+  unlockHumanAction(playerId: PlayerId, actionId: string): void { if (this.humanActionLocks.get(playerId)?.id === actionId) this.humanActionLocks.delete(playerId); }
+  #eventAction: { id: string; label: string } | null = null;
   #queue: Promise<unknown> = Promise.resolve();
   #storageFaulted = false;
   #factCache = new Map<string, InPlayFact[]>();
@@ -153,7 +160,7 @@ export class MatchRuntime implements MatchPort {
       const visible = reveals.filter(r => viewer === 'omniscient' || r.recipients.includes(viewer));
       const table = projectTable(state, viewer), beforeTable = projectTable(this.state, viewer);
       const observed = this.#observed(table, beforeTable, state, this.state);
-      event[viewer] = { id: eventId, sequence, revision: state.revision, at, actor: actor.kind === 'player' ? actor.playerId : 'system', commandKind: request!.command.kind, label: label ?? request!.command.kind, data: asJson({ command: request!.command.kind.startsWith('system_') ? { kind: request!.command.kind } : request!.command, result, ...(visible.length ? { reveals: visible } : {}), ...observed, flow: table.flow, table }) };
+      event[viewer] = { id: eventId, sequence, revision: state.revision, at, actor: actor.kind === 'player' ? actor.playerId : 'system', commandKind: request!.command.kind, label: label ?? request!.command.kind, ...(this.#eventAction ? { action: clone(this.#eventAction) } : {}), data: asJson({ command: request!.command.kind.startsWith('system_') ? { kind: request!.command.kind } : request!.command, result, ...(visible.length ? { reveals: visible } : {}), ...observed, flow: table.flow, table }) };
     }
     const ownReveals = reveals.filter(reveal => actor.kind === 'player' && reveal.recipients.includes(actor.playerId));
     const receiptResult = ownReveals.length ? asJson({ result, reveals: ownReveals }) : result;
@@ -242,12 +249,12 @@ export class MatchRuntime implements MatchPort {
     const state = clone(this.state), meta = clone(this.meta); mutate(state, meta); state.revision++;
     return this.#commit(state, meta, actor, request, result);
   }
-  #placeTasks(id: PlayerId, cardIds: string[], initial: boolean): Task[] {
+  #placeTasks(id: PlayerId, cardIds: string[], initial: boolean, benchSlots?: number[]): Task[] {
     const tasks: Task[] = [];
     const free = this.state.zones[`${id}:bench`]!.contents.items.flatMap((item, index) => item ? [] : [index]);
     for (let i = 0; i < cardIds.length; i++) {
       const zoneId = initial && i === 0 ? `${id}:active` : `${id}:bench`;
-      const index = initial && i === 0 ? 0 : free[initial ? i - 1 : i]!;
+      const index = initial && i === 0 ? 0 : (benchSlots ?? free)[initial ? i - 1 : i]!;
       tasks.push(this.#task({ kind: 'create_group', destination: dest(zoneId, index) }));
       tasks.push({ id: uid(), moveCard: { cardId: cardIds[i]!, zoneId, index, group: true } });
     }
@@ -272,8 +279,55 @@ export class MatchRuntime implements MatchPort {
     this.#validateProposal(proposal);
     return [...(proposal.restoreBeforeEventId ? [{ id: uid(), restoreBefore: proposal.restoreBeforeEventId }] : []), ...proposal.shuffles.map(item => this.#task({ kind: 'shuffle', selection: item })), { id: uid(), closeDispute: true }];
   }
-  async command(actor: PlayerId, input: CommandEnvelope): Promise<CommandReceipt> {
-    return this.serial(() => this.#commandHeld(actor,input));
+  async command(actor: PlayerId, input: CommandEnvelope, action?: { id: string; label: string }): Promise<CommandReceipt> {
+    return this.serial(async () => {
+      const lock = this.humanActionLocks.get(actor);
+      const manual = lock?.mode === 'manual' && !action;
+      if (manual && !['move', 'create_group', 'remove_group', 'set_state', 'look', 'show', 'shuffle', 'declare', 'concede'].includes(input.command.kind))
+        throw new ApiError('HUMAN_SETTLEMENT_REQUIRED', '手动修正仅允许调整当前结算；完成后请让代理核对，不能直接推进回合或交权', 409);
+      if (lock && this.state.players.find(player => player.id === actor)?.kind === 'human' && action?.id !== lock.id && !manual && input.command.kind !== 'concede')
+        throw new ApiError('HUMAN_ACTION_IN_PROGRESS', '请先完成当前结算或让代理修正', 409);
+      if (action && (lock?.id !== action.id || lock.playerId !== actor)) throw new ApiError('HUMAN_ACTION_SCOPE', '行动与当前操作席位不匹配', 409);
+      this.#eventAction = action ?? (manual && input.command.kind !== 'concede' ? { id: lock.id, label: lock.label } : null);
+      try { return await this.#commandHeld(actor,input); }
+      finally { this.#eventAction = null; }
+    });
+  }
+  /** 执行代理仅能恢复当前行动的有效因果结算，成功与拒绝均按原请求 ID 收敛。 */
+  async restoreHumanAction(actor: PlayerId, input: { requestId: string; revision: number; beforeEventId: string; reason: string }, action: { id: string; label: string }): Promise<CommandReceipt> {
+    return this.serial(async () => {
+      this.humanPlayer(actor);
+      const lock = this.humanActionLocks.get(actor);
+      if (!lock || lock.id !== action.id || lock.playerId !== actor) throw new ApiError('HUMAN_ACTION_SCOPE', '恢复请求与当前人类行动不匹配', 409);
+      if (!input.requestId?.trim() || !input.beforeEventId?.trim() || !input.reason?.trim() || input.reason.length > 1000 || !Number.isSafeInteger(input.revision) || input.revision < 0)
+        throw new ApiError('INVALID_ACTION_RESTORE', '恢复请求需要有效请求标识、版本、恢复点和原因');
+      const bound: Actor = { kind: 'player', playerId: actor };
+      const recovery = { action: clone(action), beforeEventId: input.beforeEventId, reason: input.reason };
+      const previous = this.records.find(record => record.request?.requestId === input.requestId);
+      if (previous) {
+        const command = previous.request!.command;
+        const request = { requestId: input.requestId, revision: input.revision, command: { ...command, recovery } };
+        if (command.kind !== 'system_restore' || previous.fingerprint !== canonical({ actor: bound, request })) throw new ApiError('REQUEST_ID_CONFLICT', '该请求标识已被不同请求使用', 409);
+        const receipt = clone(previous.receipt!);
+        if (receipt.status === 'committed' && this.meta.revoked[receipt.eventId]) receipt.revokedBy = this.meta.revoked[receipt.eventId]!;
+        return receipt;
+      }
+      const index = this.records.findIndex(record => record.event?.A.id === input.beforeEventId);
+      const before = index > 0 ? this.records[index - 1]! : null;
+      const command = { kind: 'system_restore' as const, state: before?.state ?? this.state, recovery };
+      const request = { requestId: input.requestId, revision: input.revision, command };
+      if (input.revision !== this.state.revision) return this.#outcome(bound, request, { status: 'rejected', revision: this.state.revision, error: { code: 'REVISION_CONFLICT', message: '牌桌版本已变化，请读取最新观察' } });
+      if (!humanActionRecoveryPoints(this, actor, action.id).some(point => point.eventId === input.beforeEventId))
+        return this.#outcome(bound, request, { status: 'rejected', revision: this.state.revision, error: { code: 'RECOVERY_SCOPE_CONFLICT', message: '恢复点不属于当前行动的有效结算，或其后已有独立操作、异议或待定流程' } });
+      const eventId = this.#eventId(), meta = clone(this.meta), target = this.records[index]!;
+      const revokedEvents = this.records.flatMap(record => record.event && record.sequence >= target.sequence && !meta.revoked[record.event.A.id] ? [record.event.A.id] : []);
+      for (const id of revokedEvents) meta.revoked[id] = eventId;
+      const computed = executeCore(this.state, command, { kind: 'system', purpose: 'disposition' }, this.entropy);
+      this.#eventAction = action;
+      try {
+        return await this.#commit(computed.state, meta, bound, request, asJson({ restoredBefore: input.beforeEventId, revokedEvents, reason: input.reason }), [], '代理修正 · 恢复牌桌与流程', eventId);
+      } finally { this.#eventAction = null; }
+    });
   }
   async #commandHeld(actor: PlayerId, input: CommandEnvelope): Promise<CommandReceipt> {
     const malformed = validationError(CommandEnvelopeSchema, input); if (malformed) throw new ApiError('INVALID_COMMAND', malformed);
@@ -320,10 +374,11 @@ export class MatchRuntime implements MatchPort {
             const initial = command.kind === 'initial_placement';
             const positions = initial ? [command.active, ...command.bench] : command.bench;
             if (command.bench.length > (initial ? 5 : this.state.zones[`${actor}:bench`]!.contents.items.filter(item => !item).length)) throw new ApiError('BENCH_FULL', '备战选择超出可用空间');
+            if (command.benchSlots && (command.benchSlots.length !== command.bench.length || command.benchSlots.some(slot => this.state.zones[`${actor}:bench`]!.contents.items[slot] !== null))) throw new ApiError('INVALID_BENCH_SLOT', '备战落点必须与选牌一一对应且为空位');
             const ids = positions.map(position => basicAt(this.state, position, actor));
             if (!initial && ids.some(id => !this.meta.bonusCards[actor].includes(id))) throw new ApiError('INVALID_ADDITIONAL_BENCH', '追加备战只能选择本次补抽所得基础宝可梦');
             if (new Set(ids).size !== ids.length) throw new ApiError('DUPLICATE_SELECTION', '准备选择不得重复');
-            const tasks = this.#placeTasks(actor, ids, initial);
+            const tasks = this.#placeTasks(actor, ids, initial, command.benchSlots);
             receipt = await this.#protocol(bound, request, (_state, meta) => { meta.tasks = tasks; });
           } else if (command.kind === 'mulligan_draw') {
             if (command.count > (choice.maximum ?? 0) || command.count > this.state.zones[`${actor}:deck`]!.contents.items.length) throw new ApiError('INVALID_BONUS_COUNT', '补抽数量超出允许范围');

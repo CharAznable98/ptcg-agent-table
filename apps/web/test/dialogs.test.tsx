@@ -236,7 +236,7 @@ function renderDebugMatch() {
 describe("调试操作页面弹窗", () => {
   it("首个恢复与指定事件恢复均经过弹窗且无需凭证", async () => {
     const fetch = renderDebugMatch();
-    await screen.findByText("牌桌操作");
+    await screen.findByLabelText("牌桌视角");
     fireEvent.click(screen.getByText("调试"));
     fireEvent.click(screen.getByText("恢复到首个玩家操作前"));
     let dialog = screen.getByRole("dialog", { name: "恢复牌桌" });
@@ -254,10 +254,9 @@ describe("调试操作页面弹窗", () => {
       targetEventId: "event-1",
     });
     expect(first[1].headers.has("x-match-token")).toBe(false);
-    fireEvent.click(
-      within(document.querySelector<HTMLElement>('[data-event-id="event-2"]')!)
-        .getByRole("button", { name: "恢复至此之前" }),
-    );
+    const entry = document.querySelector<HTMLElement>('[data-event-id="event-2"]')!;
+    fireEvent.click(within(entry).getByText("细节"));
+    fireEvent.click(await within(entry).findByRole("button", { name: "恢复至此之前" }));
     dialog = screen.getByRole("dialog", { name: "恢复牌桌" });
     expect(within(dialog).getByText(/指定位置移动/)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByText("确认恢复牌桌"));
@@ -278,7 +277,7 @@ describe("调试操作页面弹窗", () => {
 
   it("中止要求填写原因，确认后才发送原debug命令", async () => {
     const fetch = renderDebugMatch();
-    await screen.findByText("牌桌操作");
+    await screen.findByLabelText("牌桌视角");
     fireEvent.click(screen.getByText("调试"));
     fireEvent.click(screen.getByText("中止运行并留记录"));
     const dialog = screen.getByRole("dialog", { name: "中止运行" });

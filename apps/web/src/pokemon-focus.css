@@ -1,0 +1,53 @@
+/* 只遮罩牌桌，右侧记录仍可查看。卡牌聚焦层 32，高于悬浮详情 30。 */
+.pokemon-focus-backdrop { position: absolute; inset: 0; z-index: 32; display: grid; place-items: center; padding: 20px; background: rgb(12 25 18 / .5); }
+.match-workspace .pokemon-focus { width: min(820px, 100%); max-height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 20px; padding: 24px; background: var(--match-surface); border: 1px solid var(--match-line); border-radius: 12px; box-shadow: 0 16px 54px var(--match-shadow); color: var(--match-text); }
+.pokemon-focus > header { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex: none; }
+.pokemon-focus > header > div { min-width: 0; }
+.match-workspace .pokemon-focus h2 { margin: 0 0 3px; font-size: 21px; line-height: 1.4; overflow-wrap: anywhere; }
+.pokemon-focus > header span { font-size: 12px; color: var(--match-muted); }
+.pokemon-focus .pokemon-focus-close { flex: none; }
+.pokemon-focus-body { min-height: 0; display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 26px; overflow-y: auto; overscroll-behavior: contain; }
+.pokemon-portrait { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.match-workspace .pokemon-portrait > .card-face.compact { height: auto; width: 100%; aspect-ratio: 63 / 88; flex: none; border-radius: 6px; }
+.pokemon-vitals { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 14px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.pokemon-vitals > span { color: var(--match-damage); }
+.pokemon-conditions { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--match-damage); font-size: 12px; }
+.pokemon-traits { display: flex; flex-wrap: wrap; gap: 5px 14px; color: var(--match-muted); font-size: 11px; }
+.pokemon-action-list { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.match-workspace .pokemon-action { display: flex; flex-direction: column; align-items: stretch; gap: 9px; width: 100%; min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--match-line); border-radius: 8px; color: var(--match-text); background: var(--match-zone); text-align: left; }
+.pokemon-action-heading { display: grid; grid-template-columns: 80px minmax(0, 1fr) max-content; align-items: center; gap: 8px 12px; min-width: 0; }
+.pokemon-action-heading > strong { min-width: 0; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.pokemon-action-kind { justify-self: start; padding: 2px 7px; border-radius: 4px; background: var(--match-soft); color: var(--match-accent); font-size: 11px; font-weight: 650; }
+.pokemon-cost { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.pokemon-cost > span { padding: 2px 5px; border: 1px solid var(--match-line); border-radius: 4px; font-size: 11px; line-height: 1.5; white-space: nowrap; }
+.pokemon-action-damage { margin-left: auto; font-size: 19px; font-variant-numeric: tabular-nums; }
+.match-workspace .pokemon-action p { margin: 0; font-size: 13px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.match-workspace button.pokemon-action:hover:not(:disabled), .match-workspace .pokemon-retreat:hover:not(:disabled) { border-color: var(--match-accent); background: var(--match-soft); }
+.match-workspace button.pokemon-action:active:not(:disabled), .pokemon-retreat:active:not(:disabled) { transform: scale(.985); }
+.match-workspace .pokemon-action:disabled, .pokemon-retreat:disabled { opacity: .55; cursor: default; }
+.pokemon-retreat { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border: 1px solid var(--match-line); border-radius: 8px; background: var(--match-surface); color: var(--match-text); font-size: 13px; }
+.pokemon-rules { margin: 0; font-size: 12px; line-height: 1.7; color: var(--match-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pokemon-members { min-width: 0; border-top: 1px solid var(--match-line); padding-top: 12px; font-size: 12px; }
+.pokemon-members > summary { cursor: pointer; color: var(--match-muted); }
+.pokemon-members > div { display: grid; gap: 5px; margin-top: 10px; }
+.pokemon-members button, .pokemon-retreat-target { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; padding: 9px 12px; border: 1px solid var(--match-line); border-radius: 5px; background: var(--match-zone); color: var(--match-text); text-align: left; overflow-wrap: anywhere; }
+.pokemon-members small, .pokemon-retreat-target small { flex: none; font-size: 10px; color: var(--match-muted); }
+.pokemon-members button:hover, .pokemon-retreat-target:hover { border-color: var(--match-accent); background: var(--match-soft); }
+.pokemon-retreat-targets { display: grid; gap: 8px; }
+.pokemon-retreat-targets > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pokemon-retreat-targets h3 { margin: 0; font-size: 14px; }
+@media (prefers-reduced-motion: no-preference) {
+  .pokemon-focus { animation: pokemon-focus-in .16s ease-out; }
+  .pokemon-action, .pokemon-retreat { transition: background-color .14s, border-color .14s, transform .14s; }
+  @keyframes pokemon-focus-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+}
+@media (max-width: 600px) {
+  .pokemon-focus-backdrop { padding: 8px; }
+  .match-workspace .pokemon-focus { padding: 14px; gap: 14px; }
+  .pokemon-focus-body { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .pokemon-portrait { align-items: center; }
+  .match-workspace .pokemon-portrait > .card-face.compact { width: min(150px, 55%); }
+  .match-workspace .pokemon-focus h2 { font-size: 17px; }
+  .match-workspace .pokemon-action { padding: 12px; }
+  .pokemon-action-heading { grid-template-columns: 64px minmax(0, 1fr) max-content; gap: 8px; }
+}

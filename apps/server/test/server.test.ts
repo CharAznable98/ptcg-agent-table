@@ -43,7 +43,7 @@ async function command(app: Awaited<ReturnType<typeof buildApp>>, game: CreateMa
 }
 async function ready(app: Awaited<ReturnType<typeof buildApp>>, game: CreateMatchResponse): Promise<MatchView> {
   for (let i=0;i<5;i++) {
-    const current=await view(app,game); const choice=current.flow.choice; if(!choice) return current;
+    const current=await view(app,game); const choice=current.flow.choice; if(!choice) { await app.gameService.prepareHumanTurn(app.gameService.match(game.match.id)); return view(app,game); }
     const cmd: GameCommand = choice.kind==='choose_first' ? {kind:'choose_first',firstPlayer:'A'} : {kind:'initial_placement',active:{zoneId:`${choice.playerId}:hand`,index:0},bench:[]};
     const result=await command(app,game,choice.playerId,cmd); assert.equal(result.status,'committed',JSON.stringify(result));
   }
@@ -140,7 +140,7 @@ test('AI 对手用户策略更新及完整导入保留历史并生成新身份',
 test('自动准备逐原子操作生成手牌、奖赏与公开战斗卡牌组',async t=>{
   const {app}=await setup(t); const game=await create(app); const current=await ready(app,game);
   assert.equal(current.flow.phase,'turn'); assert.equal(current.flow.turnOwner,'A');
-  for(const id of ['A','B']) { assert.equal(current.zones.find(z=>z.id===`${id}:hand`)!.items.length,6); assert.equal(current.zones.find(z=>z.id===`${id}:prizes`)!.items.filter(Boolean).length,6); assert.equal(current.zones.find(z=>z.id===`${id}:active`)!.items[0]!.kind,'group'); }
+  for(const id of ['A','B']) { assert.equal(current.zones.find(z=>z.id===`${id}:hand`)!.items.length,id === 'A' ? 7 : 6); assert.equal(current.zones.find(z=>z.id===`${id}:prizes`)!.items.filter(Boolean).length,6); assert.equal(current.zones.find(z=>z.id===`${id}:active`)!.items[0]!.kind,'group'); }
   const auto=current.events.filter(e=>e.actor==='system'); assert.ok(auto.some(e=>e.commandKind==='shuffle')); assert.ok(auto.some(e=>e.commandKind==='create_group')); assert.ok(auto.some(e=>e.commandKind==='move')); assert.ok(current.revision>15);
 });
 test('无需凭证仍保留人机视角限制，全知和 live 导出均拒绝',async t=>{

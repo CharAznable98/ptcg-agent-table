@@ -57,6 +57,40 @@ function InspectorHarness() {
 }
 
 describe("牌桌卡牌总览与详情", () => {
+  it("多叠牌角标与三种状态、多附着信息均可读取，不挤入基本数值", () => {
+    const rich = structuredClone(group);
+    rich.stack.push({ ...structuredClone(member), position: { ...rich.position, member: { relation: "stack", index: 1 } } }, { ...structuredClone(member), position: { ...rich.position, member: { relation: "stack", index: 2 } } });
+    rich.state.damageCounters = 4;
+    rich.state.specialConditions = ["poisoned", "burned", "confused"];
+    rich.attached = ["合成能量甲", "合成能量乙", "合成道具"].map((name, index) => ({ ...structuredClone(member), position: { ...rich.position, member: { relation: "attached", index } }, card: { kind: "trainer", subtype: "tool", name, text: "合成说明" } }));
+    render(<ObjectCard object={rich} selected={[]} onSelect={vi.fn()} onInspect={vi.fn()} interactive={false} />);
+    const information = screen.getByRole("group", { name: "叶芽信息" });
+    expect(within(information).getByText("HP 80")).toBeInTheDocument();
+    expect(within(information).getByText("伤害 40")).toBeInTheDocument();
+    const count = screen.getByLabelText("叠牌 3");
+    expect(count.closest("button")).toBe(screen.getByRole("button", { name: /查看A.*卡牌组/ }));
+    const extra = within(information).getByRole("group", { name: "叶芽状态与附着" });
+    expect(extra).toHaveAttribute("tabindex", "0");
+    for (const label of ["中毒", "灼伤", "混乱", "合成能量甲", "合成能量乙", "合成道具"]) expect(within(extra).getByText(label)).toBeInTheDocument();
+  });
+  it("信息区键盘翻页只滚动额外信息，标题与数值不跟随滚动", () => {
+    const parentKeyDown = vi.fn();
+    const rich = { ...group, state: { ...group.state, specialConditions: ["poisoned", "burned", "confused"] } };
+    render(<div onKeyDown={parentKeyDown}><ObjectCard object={rich} selected={[]} onSelect={vi.fn()} onInspect={vi.fn()} interactive={false} /></div>);
+    const information = screen.getByRole("group", { name: "叶芽信息" });
+    const extra = within(information).getByRole("group", { name: "叶芽状态与附着" });
+    Object.defineProperties(extra, { clientHeight: { value: 20 }, scrollHeight: { value: 70 } });
+    fireEvent.keyDown(extra, { key: "End" });
+    expect(extra.scrollTop).toBe(50);
+    expect(information.scrollTop).toBe(0);
+    fireEvent.keyDown(extra, { key: "PageUp" });
+    expect(extra.scrollTop).toBe(30);
+    fireEvent.keyDown(extra, { key: "Home" });
+    expect(extra.scrollTop).toBe(0);
+    expect(parentKeyDown).not.toHaveBeenCalled();
+    expect(extra).not.toContainElement(within(information).getByText("HP 80"));
+    expect(extra).not.toContainElement(within(information).getByText("伤害 20"));
+  });
   it("卡背图片失败后保留隐藏卡牌和隐藏卡牌组的可访问操作", () => {
     const hidden = { kind: "hidden" as const, position: { zoneId: "B:hand", index: 0 } };
     const onSelect = vi.fn();
@@ -98,7 +132,7 @@ describe("牌桌卡牌总览与详情", () => {
         interactive={false}
       />,
     );
-    fireEvent.mouseEnter(container.querySelector(".group-object")!);
+    fireEvent.mouseEnter(container.querySelector(".object-button")!);
     expect(onPreview).toHaveBeenLastCalledWith(group);
     expect(onInspect).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /查看A.*卡牌组/ }));
@@ -116,6 +150,26 @@ describe("牌桌卡牌总览与详情", () => {
     expect(onSelect).toHaveBeenCalledWith(group.position);
     expect(screen.getByText("伤害 20")).toBeInTheDocument();
     expect(screen.queryByText(/剩余/)).not.toBeInTheDocument();
+  });
+
+  it("状态附着区滚动与聚焦不弹预览，卡面悬停聚焦和点击仍可查看", () => {
+    render(<InspectorHarness />);
+    const card = screen.getByRole("button", { name: /查看A.*卡牌组/ });
+    const extra = screen.getByRole("group", { name: "叶芽状态与附着" });
+    fireEvent.mouseEnter(extra);
+    act(() => extra.focus());
+    fireEvent.keyDown(extra, { key: "End" });
+    expect(screen.queryByRole("tooltip", { name: "卡牌详情" })).not.toBeInTheDocument();
+    fireEvent.mouseEnter(card);
+    expect(screen.getByRole("tooltip", { name: "卡牌详情" })).toBeInTheDocument();
+    fireEvent.mouseLeave(card);
+    expect(screen.queryByRole("tooltip", { name: "卡牌详情" })).not.toBeInTheDocument();
+    act(() => card.focus());
+    expect(screen.getByRole("tooltip", { name: "卡牌详情" })).toBeInTheDocument();
+    act(() => extra.focus());
+    expect(screen.queryByRole("tooltip", { name: "卡牌详情" })).not.toBeInTheDocument();
+    fireEvent.click(card);
+    expect(screen.getByRole("dialog", { name: "卡牌详情" })).toBeInTheDocument();
   });
 
   it("附着摘要保留能量与道具身份，隐藏成员不泄漏牌面", () => {
@@ -178,12 +232,9 @@ describe("牌桌卡牌总览与详情", () => {
         onInspect={vi.fn()}
       />,
     );
-    expect(screen.getByText("草能量 ×2")).toHaveAttribute(
-      "title",
-      "草能量 2 张",
-    );
-    expect(screen.getByText("练习护具 ×1")).toBeInTheDocument();
-    expect(screen.getByText("隐藏卡牌 ×1")).toBeInTheDocument();
+    expect(screen.getByTitle("草能量 2 张")).toHaveTextContent("草能量×2");
+    expect(screen.getByTitle("练习护具 1 张")).toHaveTextContent("练习护具×1");
+    expect(screen.getByTitle("隐藏卡牌 1 张")).toHaveTextContent("隐藏卡牌×1");
     expect(screen.queryByText(/提供.*能量/)).not.toBeInTheDocument();
   });
 
@@ -309,7 +360,7 @@ describe("牌桌卡牌总览与详情", () => {
       expect(region.querySelectorAll(".card-face")).toHaveLength(1);
       expect(region.querySelector(".card-back-image")).toBeNull();
     }
-    fireEvent.mouseEnter(deckRegion.querySelector(".single-object")!);
+    fireEvent.mouseEnter(deckRegion.querySelector(".object-button")!);
     expect(preview).toHaveBeenLastCalledWith(deck.items[0]);
     fireEvent.click(within(deckRegion).getByRole("button", { name: /查看A.*第 1 位叶芽/ }));
     expect(inspect).toHaveBeenLastCalledWith(deck.items[0]);
@@ -415,7 +466,7 @@ describe("牌桌卡牌总览与详情", () => {
         screen.queryByRole("tooltip", { name: "卡牌详情" }),
       ).not.toBeInTheDocument();
 
-      const object = container.querySelector(".group-object")!;
+      const object = container.querySelector(".object-button")!;
       fireEvent.mouseLeave(object);
       fireEvent.mouseEnter(object);
       expect(

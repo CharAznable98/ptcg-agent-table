@@ -64,6 +64,12 @@
   color: #f5faf6;
   border-color: var(--match-accent);
 }
+.match-workspace .button.primary:hover:not(:disabled),
+.match-workspace .runtime-controls .button:first-child:hover:not(:disabled) {
+  background: var(--match-accent);
+  border-color: var(--match-accent);
+  box-shadow: 0 0 0 2px var(--match-soft);
+}
 .match-workspace .button.danger {
   color: var(--match-damage);
 }
@@ -76,6 +82,13 @@
 .match-workspace input:focus-visible {
   outline: 2px solid var(--match-accent);
   outline-offset: 2px;
+}
+.match-workspace [tabindex]:focus-visible {
+  outline: 2px solid var(--match-accent);
+  outline-offset: 2px;
+}
+.match-workspace :is(button, summary, select, input) {
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 .match-header {
   min-width: 0;
@@ -168,6 +181,9 @@
   flex: none;
   gap: 5px;
 }
+.match-workspace .runtime-controls[hidden] {
+  display: none;
+}
 .match-workspace .runtime-controls .button {
   min-height: 25px;
   padding: 3px 8px;
@@ -187,6 +203,11 @@
   padding: 5px 9px;
   border-radius: 5px;
   list-style: none;
+}
+.match-workspace :is(.match-menu, .human-action-more) > summary:hover,
+.match-workspace :is(.match-menu, .human-action-more)[open] > summary {
+  color: var(--match-accent);
+  background: var(--match-soft);
 }
 .match-menu > div {
   position: absolute;
@@ -482,6 +503,17 @@
   background: none;
   cursor: pointer;
 }
+.match-workspace .object-button:hover {
+  outline: 2px solid var(--match-accent);
+  outline-offset: 2px;
+  box-shadow: 0 3px 10px var(--match-shadow);
+}
+.match-workspace .group-object:hover {
+  background: var(--match-soft);
+}
+.match-workspace .object-button:active {
+  opacity: .8;
+}
 .match-workspace .object-card-title {
   font-size: 11px;
   font-weight: 600;
@@ -696,6 +728,26 @@
 .match-workspace .empty-slot:disabled {
   opacity: 0.55;
   cursor: default;
+}
+.match-workspace .empty-slot:hover:not(:disabled) {
+  color: var(--match-accent);
+  border-color: var(--match-accent);
+  background: var(--match-soft);
+}
+.match-workspace .empty-slot:active:not(:disabled) {
+  transform: scale(.98);
+}
+.match-workspace .zone > header > button:hover {
+  color: var(--match-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.match-workspace .human-choice-option:hover:not(:disabled) {
+  border-color: var(--match-accent);
+  background: var(--match-soft);
+}
+.match-workspace .human-choice-option:active:not(:disabled) {
+  transform: scale(.98);
 }
 .match-workspace .zone-bench .empty-slot {
   width: 128px;

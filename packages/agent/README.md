@@ -56,11 +56,15 @@ OpenAI 兼容模式的配置示例：
 | `AgentRuntime.compact / judge / summarize` | 压缩仅处理自身资料；裁判每个异议独立上下文并校验证据／恢复点；总结仅使用本席位观察和反馈 |
 | `AgentRuntime.initializeStrategy / StrategyRepository` | 初始化实际请求模型，以完整卡组和冻结规则生成整局计划；JSON 保存计划和历史，按更新 ID／基础版本发布，新局固定版本；冲突须基于最新版重新总结 |
 
-正式提示词位于 [system/prompts.json](../../system/prompts.json)，四套角色、工具说明和反馈均可配置。`loadPrompts(path?)` 校验并根据全部内容计算版本，宿主在建局时保存完整快照；新建局才读取更新。`loadDefaultPrompts()` 提供默认副本，旧 [Markdown 模板](./prompts/) 保留作为历史验证来源。协议类型见 [types.ts](./src/types.ts)，模型连接见 [model.ts](./src/model.ts)，运行循环见 [runtime.ts](./src/runtime.ts)。
+正式提示词位于 [system/prompts.json](../../system/prompts.json)，四套 AI 角色、可选的人类操作代理角色 `humanExecutor`、工具说明和反馈均可配置。`loadPrompts(path?)` 校验并根据全部内容计算版本，宿主在建局时保存完整快照；新建局才读取更新。`loadDefaultPrompts()` 提供默认副本，旧 [Markdown 模板](./prompts/) 保留作为历史验证来源。协议类型见 [types.ts](./src/types.ts)，模型连接见 [model.ts](./src/model.ts)，运行循环见 [runtime.ts](./src/runtime.ts)。
+
+人类操作代理由服务端独立编排，复用 `ModelGateway` 与原子牌桌接口；其结构化人类选择、行动完成判定和恢复状态由服务端维护，现有 `AgentRuntime.activate` 决策流程不变。
 
 `activate` 的返回包括 `waiting`、`finished` 和 `aborted`。取消时停止提交新操作，结果待定的原请求以 pending 保存，供后续显式恢复。对局胜负由牌桌端的结果确认流程处理，完整事件、恢复与部署由游戏服务负责。
 
 ## 4. 决策与上下文预算
+
+AI 对战与人类操作代理共用卡文／事件目录和快照差量编码；各自保留独立的策略、工具权限与执行循环。
 
 每次决策可以调用单个工具，也可以通过 `execute_sequence` 提交最多 16 个操作。宿主按顺序执行，每步使用实际新版本和独立请求 ID；仅当 `ToolReceipt.continuation=continue` 时继续。抽牌、开牌、随机、交权、非机械的流程变化或拒绝会停止后缀；仅进入检查阶段且操作权未变时，已经确定的检查和交还下一方步骤可同批继续，反馈列明已完成结果和未执行项。序列不是事务，成功部分不会回滚；取消及断连后保存序列进度，待定请求沿用原 ID 重试。单步模式同时将 `maxActionsPerDecision`、`maxToolCallsPerActivation` 设为 1，恢复旧序列也只处理一步。
 
