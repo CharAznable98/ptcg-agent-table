@@ -10,6 +10,7 @@ import { ApiError, atomicJson, clone, JsonRepository, now, readJson, uid } from 
 import { asJson, MatchRuntime } from './match.ts';
 import { Evaluations } from './evaluations.ts';
 import { runtimeFingerprint } from './runtime-fingerprint.ts';
+import { HumanActionController } from './human-actions.ts';
 
 function checked<T>(schema: TSchema, value: unknown, code: string): T { const error = validationError(schema, value); if (error) throw new ApiError(code, error); return clone(value as T); }
 
@@ -21,6 +22,10 @@ export class GameService {
   readonly decks: JsonRepository<DeckRecord>; readonly opponents: JsonRepository<OpponentRecord>; readonly matches = new Map<string, MatchRuntime>();
   readonly modelFactory: NonNullable<ServiceOptions['modelFactory']>;
   readonly drivers = new Map<string, { controller: AbortController; promise: Promise<void> }>();
+  readonly humanControllers = new Map<string, HumanActionController>();
+  #humanSubscriptions = new Map<MatchRuntime, () => void>();
+  #humanTasks = new Set<Promise<void>>();
+  #closing = false;
   rules: { id: string; title: string; text: string }[] = [];
   #opponentQueue: Promise<unknown> = Promise.resolve();
   constructor(options: ServiceOptions = {}) {
@@ -35,12 +40,49 @@ export class GameService {
     this.rules = await Promise.all(['规则基准','卡牌说明文语义','赛场规则摘要'].map(async name => ({ id: name, title: name, text: await readFile(join(this.rulesDir, `${name}.md`), 'utf8') })));
     for (const id of await readdir(join(this.dataDir, 'matches'))) {
       const match = new MatchRuntime({ directory: join(this.dataDir, 'matches', id) });
-      try { await match.recover(); match.rulesText = match.meta.rules; this.matches.set(id, match); }
+      try { await match.recover(); match.rulesText = match.meta.rules; this.matches.set(id, match); for (const player of match.state.players) if (player.kind === 'human') await this.humanController(match, player.id).recover(); this.#watchHumanTurns(match, false); }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOTDIR') throw error; }
     }
   }
   rulesText(): string { return this.rules.map(rule => `# ${rule.title}\n${rule.text}`).join('\n\n'); }
   match(id: string): MatchRuntime { const match = this.matches.get(id); if (!match) throw new ApiError('NOT_FOUND', '对局不存在', 404); return match; }
+  humanController(match: MatchRuntime, playerId = match.humanPlayer(match.defaultViewer())): HumanActionController {
+    const key = `${match.state.id}:${playerId}`;
+    let controller = this.humanControllers.get(key);
+    if (!controller) {
+      controller = new HumanActionController({ match, playerId, modelFactory: this.modelFactory, prompts: () => this.prompts(), wake: () => this.wake(match) });
+      this.humanControllers.set(key, controller);
+    }
+    return controller;
+  }
+  #watchHumanTurns(match: MatchRuntime, prepareInitially = true): void {
+    if (this.#humanSubscriptions.has(match) || !match.state.players.some(player => player.kind === 'human')) return;
+    let queued = false;
+    const changed = () => {
+      if (queued || this.#closing) return; queued = true;
+      queueMicrotask(() => {
+        queued = false;
+        if (this.#closing) return;
+        const task = this.prepareHumanTurn(match).catch(async error => {
+          if (!this.#closing && !match.storageFaulted) {
+            try { await match.updateRuntime({ status: 'aborted', error: error instanceof Error ? error.message : '回合开始处理失败' }); }
+            catch { /* 日志写入故障已由 MatchRuntime 锁停，不能再产生未收敛的后台写入。 */ }
+          }
+        });
+        this.#humanTasks.add(task); void task.finally(() => this.#humanTasks.delete(task));
+      });
+    };
+    this.#humanSubscriptions.set(match, changed); match.changes.on('change', changed);
+    // 恢复历史只注册后续变化监听；启动、列表和只读回放不能推进闲置对局。
+    if (prepareInitially) changed();
+  }
+  async prepareHumanTurn(match: MatchRuntime): Promise<void> {
+    if (this.#closing) return;
+    await match.serial(async () => {});
+    if (this.#closing) return;
+    const player = match.state.players.find(player => player.kind === 'human' && player.id === match.state.flow.operator && player.id === match.state.flow.turnOwner);
+    if (player) await this.humanController(match, player.id).ensureTurnStart();
+  }
   validateDeck(deck: unknown): DeckData { const error = validationError(DeckSchema, deck); if (error) throw new ApiError('INVALID_DECK', error); return clone(deck as DeckData); }
   async saveDeck(deck: unknown, id?: string): Promise<DeckRecord> { const data = this.validateDeck(deck); const previous = id ? await this.decks.get(id) : null; return this.decks.save({ id: id ?? uid(), deck: data, createdAt: previous?.createdAt ?? now(), updatedAt: now() }); }
   async #resolveDeck(input: { deck?: DeckData; deckId?: string; opponentId?: string }): Promise<DeckData> {
@@ -91,7 +133,7 @@ export class GameService {
     const configured = await readJson<PromptConfig>(join(this.systemDir, 'prompts.json'));
     if (configured) return parsePrompts(configured);
     const bundle = await loadPrompts(); const enhanced = bundle as PromptBundle & { toolDescriptions?: Record<string,string>; feedback?: Record<string,string> };
-    return { schemaVersion: 1, player: bundle.player, judge: bundle.judge, summary: bundle.summary, compactor: bundle.compactor, toolDescriptions: enhanced.toolDescriptions ?? {}, feedback: enhanced.feedback ?? {}, version: bundle.version };
+    return { schemaVersion: 1, player: bundle.player, judge: bundle.judge, summary: bundle.summary, compactor: bundle.compactor, ...(bundle.humanExecutor ? { humanExecutor: bundle.humanExecutor } : {}), toolDescriptions: enhanced.toolDescriptions ?? {}, feedback: enhanced.feedback ?? {}, version: bundle.version };
   }
   async savePrompts(input: unknown): Promise<PromptConfig> {
     let result: PromptBundle; try { result = parsePrompts(input); } catch (error) { throw new ApiError('INVALID_PROMPTS', error instanceof Error ? error.message : '提示词配置格式错误'); }
@@ -135,7 +177,7 @@ export class GameService {
     this.#uniqueOpponents(resolved);
     const id = uid(); const match = new MatchRuntime({ directory: join(this.dataDir, 'matches', id) });
     const prompts: PromptBundle = { ...config, version: config.version ?? createHash('sha256').update(JSON.stringify(config)).digest('hex') };
-    await match.create({ id, players: resolved as [PlayerSpec,PlayerSpec], mode: input.mode, prompts, model, strategies, rules: this.rulesText() }); match.rulesText = match.meta.rules; this.matches.set(id, match);
+    await match.create({ id, players: resolved as [PlayerSpec,PlayerSpec], mode: input.mode, prompts, model, strategies, rules: this.rulesText() }); match.rulesText = match.meta.rules; this.matches.set(id, match); this.#watchHumanTurns(match);
     if (input.autoRun) this.start(match, false);
     return { match: match.summary() };
   }
@@ -184,7 +226,7 @@ export class GameService {
     if (!this.drivers.has(match.state.id)) { await match.updateRuntime({ status: 'running' }); this.start(match, action === 'step'); }
     return clone(match.meta.runtime);
   }
-  wake(match: MatchRuntime): void { if (match.meta.runtime.status === 'waiting' || match.meta.dispute?.status === 'awaiting_judge' || match.state.flow.phase === 'finished' && match.state.players.some(player => player.kind === 'ai')) this.start(match, false); }
+  wake(match: MatchRuntime): void { if (!this.#closing) { this.#watchHumanTurns(match); if (match.meta.runtime.status === 'waiting' || match.meta.dispute?.status === 'awaiting_judge' || match.state.flow.phase === 'finished' && match.state.players.some(player => player.kind === 'ai')) this.start(match, false); } }
   async #drive(match: MatchRuntime, controller: AbortController, oneStep: boolean): Promise<void> {
     await match.resumeAutomatic();
     if (controller.signal.aborted) return;
@@ -268,6 +310,14 @@ export class GameService {
       } catch (error) { await match.serial(async () => { match.meta.summaries[player.id] = { status: 'failed', error: error instanceof Error ? error.message : '总结失败' }; await match.saveRuntime(); }); }
     }));
   }
-  cancel(): void { for (const driver of this.drivers.values()) driver.controller.abort(); }
-  async close(): Promise<void> { this.cancel(); await Promise.allSettled([...this.drivers.values()].map(driver => driver.promise)); }
+  cancel(): void { for (const driver of this.drivers.values()) driver.controller.abort(); for (const controller of this.humanControllers.values()) controller.cancel(); }
+  async close(): Promise<void> {
+    this.#closing = true;
+    for (const [match, changed] of this.#humanSubscriptions) match.changes.off('change', changed);
+    this.#humanSubscriptions.clear(); this.cancel();
+    await Promise.allSettled([...this.drivers.values()].map(driver => driver.promise));
+    await Promise.allSettled([...this.humanControllers.values()].map(controller => controller.close()));
+    await Promise.allSettled([...this.#humanTasks]);
+    await Promise.allSettled([...this.matches.values()].map(match => match.serial(async () => {})));
+  }
 }

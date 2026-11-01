@@ -287,11 +287,12 @@ describe("开局、异议与配置", () => {
     );
     vi.stubGlobal("fetch", fetch);
     const first = render(<Match id="match-test" back={() => {}} />);
-    await screen.findByRole("button", { name: "牌桌操作" });
+    await screen.findByLabelText("牌桌视角");
     first.unmount();
     localStorage.clear();
     render(<Match id="match-test" back={() => {}} />);
-    await screen.findByRole("button", { name: "牌桌操作" });
+    await screen.findByLabelText("牌桌视角");
+    expect(screen.queryByRole("button", { name: "牌桌操作" })).toBeNull();
     expect(screen.getByLabelText("牌桌视角")).toHaveValue("A");
     expect(screen.getAllByRole("option").map((option) => option.getAttribute("value")))
       .not.toContain("B");
@@ -350,11 +351,11 @@ describe("开局、异议与配置", () => {
       );
     vi.stubGlobal("fetch", fetch);
     render(<Match id="match-test" back={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "牌桌操作" }));
-    fireEvent.click(screen.getByText("流程"));
+    await screen.findByLabelText("牌桌视角");
+    fireEvent.click(screen.getByText("更多", { selector: ".match-menu > summary" }));
     expect(screen.getByText("认输", { selector: "button" })).toBeEnabled();
     fireEvent.click(screen.getByText("认输", { selector: "button" }));
-    fireEvent.click(screen.getByText("确认认输并结束本局"));
+    fireEvent.click(screen.getByText("确认认输"));
     await waitFor(() =>
       expect(
         fetch.mock.calls.some((call) => call[0].endsWith("/commands")),
@@ -525,7 +526,7 @@ describe("开局、异议与配置", () => {
     );
     vi.stubGlobal("fetch", fetch);
     render(<Match id="match-test" back={() => {}} />);
-    await screen.findByText("牌桌操作");
+    await screen.findByLabelText("牌桌视角");
     fireEvent.change(screen.getByLabelText("牌桌视角"), {
       target: { value: "B" },
     });

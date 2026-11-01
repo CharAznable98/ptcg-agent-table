@@ -1,0 +1,105 @@
+/* 直接操牌只增加动作反馈，牌桌区域和对局状态仍由共享协议定义。 */
+.direct-table { position: relative; }
+.direct-table .can-manipulate > .object-button,
+.direct-table .manual-attached > button { cursor: grab; touch-action: none; }
+/* 牌面与文字只负责显示，鼠标始终由同一个按钮承接。 */
+.direct-table .object-button > *,
+.direct-table .empty-slot > * { pointer-events: none; }
+/* 卡牌组作为一个落点；来源组保持原命中，防止正在进行的拖动被取消。 */
+.direct-table.is-dragging .group-object:not(:has([aria-grabbed="true"])) > * { pointer-events: none; }
+.direct-table [aria-grabbed="true"] { opacity: .55; cursor: grabbing; }
+.direct-table.is-dragging .card-inspector { pointer-events: none; }
+.direct-table.is-dragging [data-drop-target="ready"] { outline: 1px dashed var(--match-accent); outline-offset: -2px; }
+.direct-table.is-dragging [data-drop-target="ready"]:hover { background: var(--match-soft); outline: 2px solid var(--match-accent); }
+.match-workspace .direct-use-target {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  z-index: 15; min-width: 130px; min-height: 42px; padding: 8px 22px;
+  color: var(--match-accent); background: var(--match-surface); border: 2px dashed var(--match-accent);
+  border-radius: 7px; font-size: 12px; font-weight: 650; box-shadow: 0 4px 18px var(--match-shadow);
+}
+.direct-table-notice { position: absolute; bottom: calc(50% + 5px); left: 50%; transform: translateX(-50%); z-index: 16; pointer-events: none; color: var(--match-accent); font-size: 11px; line-height: 20px; white-space: nowrap; }
+.direct-table-notice:not(:empty) { background: var(--match-surface); border: 1px solid var(--match-line); padding: 0 8px; border-radius: 4px; }
+.direct-table-notice.has-notice { color: var(--match-damage); }
+.match-workspace .setup-table .setup-ghost { border: 1px dashed var(--match-accent); background: var(--match-soft); }
+.human-setup-bar { display: flex; align-items: center; gap: 7px; margin-left: auto; min-width: 0; color: var(--match-muted); font-size: 11px; }
+.setup-bar-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.setup-placement-count { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* 槽位使用整行可用宽度；牌面列跟随实际高度，剩余空间全部交给信息列。 */
+.match-workspace .playmat .zone-bench > .zone-content { display: grid; grid-template-columns: repeat(var(--bench-slots, 5), minmax(128px, 1fr)); grid-template-rows: minmax(0, 1fr); justify-content: stretch; align-items: stretch; }
+.match-workspace .playmat .zone-bench .zone-position,
+.match-workspace .playmat .zone-bench .group-object,
+.match-workspace .playmat .zone-bench .empty-slot { width: 100%; min-width: 0; height: 100%; min-height: 0; }
+.match-workspace .playmat .group-object { grid-template-rows: minmax(0, 1fr); align-content: start; padding-top: 0; padding-bottom: 0; }
+.match-workspace .playmat :is(.zone-bench, .zone-active) .group-object { --rendered-face-height: min(var(--face-height), calc(100cqh - 4px)); grid-template-columns: calc(var(--rendered-face-height) * 63 / 88) minmax(0, 1fr); }
+.match-workspace .playmat :is(.zone-bench, .zone-active) .group-object > .object-button { height: var(--rendered-face-height); }
+/* 只有 extra 可以滚动；外层不成为滚动容器，聚焦/End 不会卷走必需信息。 */
+.match-workspace .playmat .group-object > .group-info { grid-column: 2; grid-row: 1; align-self: stretch; display: grid; grid-template-rows: max-content minmax(20px, 1fr); align-content: start; gap: 1px; min-width: 0; min-height: 0; height: 100%; overflow: clip; }
+.match-workspace .playmat .group-object > .group-info:not(:has(> .group-extra)) { grid-template-rows: max-content; align-content: safe center; }
+.group-required { display: grid; gap: 0; min-width: 0; }
+.match-workspace .group-info .group-badges { flex-wrap: nowrap; gap: 0 4px; line-height: 1.2; white-space: nowrap; }
+.group-extra { display: flex; flex-direction: column; gap: 2px; min-height: 20px; min-width: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--match-accent) var(--match-zone); }
+.group-extra > * { flex-shrink: 0; }
+.group-stack-count { position: absolute; bottom: 1px; right: 1px; z-index: 1; pointer-events: none; padding: 1px 3px; max-width: calc(100% - 2px); border: 1px solid var(--match-line); border-radius: 2px; background: var(--match-surface); color: var(--match-text); font-size: 9px; font-weight: 600; line-height: 1.2; white-space: nowrap; }
+.match-workspace .group-info .attached-summary { display: grid; gap: 2px; min-width: 0; min-height: 14px; max-height: none; overflow: visible; }
+.match-workspace .group-info .attached-summary > span,
+.match-workspace .card-inspector .attached-summary > span { display: flex; gap: 4px; min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; }
+.attached-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.attached-count { flex: none; font-weight: 500; font-variant-numeric: tabular-nums; }
+.match-workspace .table-column:has(.manual-state-toolbar) > .playmat { padding-bottom: 52px; }
+.manual-state-toolbar { position: absolute; z-index: 26; bottom: 9px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; min-height: 33px; width: max-content; max-width: calc(100% - 28px); padding: 5px 9px; border: 1px solid var(--match-line); border-radius: 5px; background: var(--match-surface); color: var(--match-text); box-shadow: 0 3px 12px var(--match-shadow); font-size: 11px; }
+.manual-target-name { min-width: 0; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.manual-target-damage { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.manual-state-buttons { display: flex; align-items: center; gap: 5px; flex: none; }
+.match-workspace .manual-state-buttons button,
+.match-workspace .manual-state-buttons select,
+.match-workspace .manual-attached button { border: 1px solid var(--match-line); border-radius: 3px; padding: 1px 3px; background: var(--match-surface); color: var(--match-text); font-size: 10px; line-height: 1.4; white-space: nowrap; }
+.match-workspace .manual-state-buttons button { min-height: 24px; padding: 2px 7px; font-size: 11px; }
+.match-workspace .manual-state-buttons select { min-height: 24px; width: 93px; padding: 2px 4px; font-size: 11px; }
+.match-workspace .manual-state-buttons :disabled { opacity: .5; cursor: default; }
+.match-workspace .group-info .manual-attached { display: grid; overflow: visible; max-height: none; }
+.match-workspace .manual-attached button { min-width: 0; width: 100%; max-width: 100%; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.human-action-dock { display: flex; align-items: center; gap: 6px; min-width: 0; margin-left: auto; font-size: 12px; color: var(--match-muted); }
+.human-action-status { display: block; min-width: 0; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.human-action-dock.is-running .human-action-status::before { content: ""; display: inline-block; vertical-align: -.1em; width: 10px; height: 10px; margin-right: 5px; border: 1.5px solid var(--match-line); border-top-color: var(--match-accent); border-radius: 50%; animation: executor-spin .8s linear infinite; }
+.human-action-more { position: relative; flex: none; }
+.human-action-more > summary { padding: 5px 7px; font-size: 11px; cursor: pointer; list-style: none; white-space: nowrap; }
+.human-action-more > summary::-webkit-details-marker { display: none; }
+.human-action-more > div { position: absolute; top: calc(100% + 5px); right: 0; z-index: 35; min-width: 115px; display: grid; gap: 5px; padding: 6px; border: 1px solid var(--match-line); border-radius: 5px; background: var(--match-surface); box-shadow: 0 5px 18px var(--match-shadow); }
+.human-choice-sheet {
+  position: absolute; z-index: 24; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; gap: 12px; width: min(720px, calc(100% - 32px));
+  max-height: calc(100% - 32px); padding: 16px; background: var(--match-surface);
+  color: var(--match-text); border: 1px solid var(--match-line); border-radius: 8px; box-shadow: 0 12px 46px var(--match-shadow);
+}
+.human-choice-sheet > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; }
+.human-choice-sheet > header > div { min-width: 0; }
+.human-choice-sheet h2 { margin: 0 0 4px; font-size: 14px; font-weight: 650; line-height: 1.45; overflow-wrap: anywhere; }
+.human-choice-sheet > header span { color: var(--match-muted); font-size: 11px; }
+.human-choice-sheet > header .button { flex: none; }
+.human-choice-options { min-height: 0; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; padding: 3px; scrollbar-width: thin; }
+.human-choice-options.has-cards { grid-template-columns: repeat(auto-fill, minmax(94px, 1fr)); }
+.human-choice-option { position: relative; min-width: 0; padding: 8px; border: 1px solid var(--match-line); border-radius: 5px; background: var(--match-zone); color: var(--match-text); text-align: left; }
+.human-choice-option.has-card { display: flex; flex-direction: column; gap: 7px; }
+.choice-option-location { display: block; color: var(--match-text); font-size: 11px; font-weight: 650; line-height: 1.45; overflow-wrap: anywhere; }
+.choice-option-location > span { display: inline-block; white-space: nowrap; }
+.has-card .choice-option-location { min-height: 2.9em; }
+.choice-option-card { position: relative; display: block; width: 100%; }
+.human-choice-option .card-face.compact { width: 100%; height: auto; aspect-ratio: 63 / 88; overflow: hidden; }
+.human-choice-option .card-face.compact .card-image { width: 100%; height: 100%; object-fit: contain; }
+.human-choice-option.is-chosen { border-color: var(--match-accent); box-shadow: inset 0 0 0 1px var(--match-accent); background: var(--match-soft); }
+.choice-option-label { font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.choice-order { position: absolute; top: 4px; right: 4px; padding: 2px 5px; border-radius: 3px; background: var(--match-accent); color: var(--match-surface); font-size: 10px; }
+.human-choice-option:not(.has-card) .choice-order { position: static; display: table; margin-top: 6px; }
+.human-choice-option:disabled { opacity: .45; cursor: default; }
+.human-choice-order { min-height: 0; max-height: 120px; overflow: auto; padding: 0; margin: 0; list-style: none; }
+.human-choice-order > li { display: flex; align-items: center; gap: 7px; padding: 3px 0; font-size: 11px; }
+.human-choice-order > li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.human-choice-order button { flex: none; font-size: 10px; border: 1px solid var(--match-line); border-radius: 3px; color: var(--match-text); background: var(--match-zone); padding: 2px 5px; }
+.human-number-choice label { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+.human-number-choice input { width: 110px; padding: 8px; border: 1px solid var(--match-line); border-radius: 4px; background: var(--match-zone); color: var(--match-text); font-size: 16px; }
+.human-choice-sheet > footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.human-choice-sheet > footer > span { color: var(--match-damage); font-size: 12px; }
+@keyframes executor-spin { to { transform: rotate(360deg); } }
+@media (max-width: 1366px) { .human-action-status { max-width: 160px; } }
+@media (max-width: 600px) { .human-choice-sheet { width: calc(100% - 16px); padding: 12px; gap: 8px; } .human-choice-sheet > header { align-items: flex-start; gap: 8px; } .human-choice-options.has-cards { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); } .human-action-status { max-width: 110px; } }
+@media (prefers-reduced-motion: reduce) { .human-action-dock.is-running .human-action-status::before { animation: none; } }

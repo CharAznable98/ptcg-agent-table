@@ -1,0 +1,24 @@
+.table-motion-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 12; border-radius: 8px; }
+.table-motion-ghost { position: absolute; aspect-ratio: 63 / 88; filter: drop-shadow(0 5px 8px var(--match-shadow)); animation: table-card-travel 480ms cubic-bezier(.22,.7,.3,1) both; }
+.table-motion-ghost > *, .table-motion-ghost img { width: 100%; height: 100%; object-fit: contain; border-radius: 4px; }
+.table-motion-pulse { position: absolute; border-radius: 5px; border: 2px solid var(--match-accent); animation: table-change-pulse 650ms ease-out both; }
+.table-motion-number { position: absolute; right: -5px; top: -6px; padding: 3px 7px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--match-damage); background: var(--match-surface); border: 1px solid var(--match-line); border-radius: 5px; animation: table-number-change 650ms ease-out both; }
+.shuffle-pulse { animation: table-shuffle-pulse 600ms ease-in-out both; }
+.replay-action-caption { display: grid; min-width: 0; align-content: center; gap: 1px; flex: 2; overflow: hidden; line-height: 1.25; }
+.replay-action-caption strong, .replay-action-caption small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.replay-action-caption strong { font-size: 12px; font-weight: 600; }
+.replay-action-caption small { font-size: 11px; color: var(--match-muted); }
+.match-workspace .replay-bar .replay-action-counter { font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 4.5em; text-align: center; }
+.match-workspace .replay-bar .replay-stop { color: var(--match-accent); }
+.match-workspace .match-status-line > .replay-bar { max-width: none; min-width: 0; gap: 7px; }
+.match-workspace .match-status-line > .replay-bar input { flex: .7; min-width: 60px; max-width: 180px; }
+.match-workspace .match-status-line > .replay-bar .replay-stop { flex: none; width: 43px; }
+.match-workspace:has(.replay-bar) .turn-status { max-width: 210px; }
+.match-workspace.is-returning-live .runtime-controls { display: none; }
+.match-workspace .runtime-controls[hidden] { display: none; }
+.match-workspace.is-returning-live .playmat { opacity: .65; }
+@keyframes table-card-travel { 0% { opacity: .9; transform: translate(0,0) scale(1.04); } 85% { opacity: .95; } 100% { opacity: 0; transform: translate(var(--motion-x),var(--motion-y)) scale(.96); } }
+@keyframes table-change-pulse { 0% { opacity: .15; box-shadow: 0 0 0 5px var(--match-soft); } 35% { opacity: .9; } 100% { opacity: 0; box-shadow: 0 0 0 1px transparent; } }
+@keyframes table-number-change { from { opacity: 1; transform: translateY(4px); } to { opacity: 0; transform: translateY(-10px); } }
+@keyframes table-shuffle-pulse { 0%,100% { opacity: 0; transform: translateX(0); } 25%,75% { opacity: .8; transform: translateX(-3px); } 50% { opacity: .8; transform: translateX(3px); } }
+@media (prefers-reduced-motion: reduce) { .table-motion-layer { display: none; } }

@@ -8,7 +8,7 @@ const text = Type.String({ minLength: 1, maxLength: 200_000 });
 const requiredToolNames = ['move', 'shuffle', 'set_state', 'look', 'show', 'random', 'create_group', 'remove_group', 'declare', 'set_turn', 'handoff', 'report_result', 'confirm_result', 'concede', 'choose_first', 'initial_placement', 'mulligan_draw', 'additional_bench', 'object', 'respond', 'read_history', 'read_rules', 'submit_result'];
 const requiredFeedbackNames = ['playerToolCountInvalid', 'playerToolRequired', 'invalidArgumentsJson', 'toolUnavailable', 'structuredToolRequired', 'playerRulesHeading', 'judgeRulesHeading', 'modelTestInstructions', 'modelTestUser'];
 export const PromptConfigSchema = Type.Object({
-  schemaVersion: Type.Literal(1), player: text, judge: text, summary: text, compactor: text,
+  schemaVersion: Type.Literal(1), player: text, judge: text, summary: text, compactor: text, humanExecutor: Type.Optional(text),
   toolDescriptions: Type.Record(Type.String(), text), feedback: Type.Record(Type.String(), text),
   version: Type.Optional(Type.String()),
 }, { additionalProperties: false });

@@ -52,9 +52,9 @@ export const GameCommandSchema = Type.Union([
   obj({ kind: Type.Literal('confirm_result'), agree: Type.Literal(true) }),
   obj({ kind: Type.Literal('concede') }),
   obj({ kind: Type.Literal('choose_first'), firstPlayer: PlayerIdSchema }),
-  obj({ kind: Type.Literal('initial_placement'), active: PositionSchema, bench: Type.Array(PositionSchema) }),
+  obj({ kind: Type.Literal('initial_placement'), active: PositionSchema, bench: Type.Array(PositionSchema), benchSlots: Type.Optional(Type.Array(Type.Integer({ minimum: 0, maximum: 4 }), { uniqueItems: true, maxItems: 5 })) }),
   obj({ kind: Type.Literal('mulligan_draw'), count: N }),
-  obj({ kind: Type.Literal('additional_bench'), bench: Type.Array(PositionSchema) }),
+  obj({ kind: Type.Literal('additional_bench'), bench: Type.Array(PositionSchema), benchSlots: Type.Optional(Type.Array(Type.Integer({ minimum: 0, maximum: 4 }), { uniqueItems: true, maxItems: 5 })) }),
   obj({ kind: Type.Literal('object'), targetEventId: Id, reason: Type.String({ minLength: 1 }), evidenceRefs: Type.Array(Id), proposal: Type.Optional(ProposalSchema) }),
   obj({ kind: Type.Literal('respond'), response: Type.Union([obj({ kind: Type.Literal('accept'), disputeId: Id, proposalId: Id }), obj({ kind: Type.Literal('defend'), disputeId: Id, reason: Type.String({ minLength: 1 }), evidenceRefs: Type.Array(Id) })]) }),
 ]);

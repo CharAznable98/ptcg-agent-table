@@ -56,7 +56,7 @@ describe("对局工作区", () => {
         name: "查看A · 备战区 第 1 位卡牌组",
       }),
     );
-    expect(screen.getByRole("dialog", { name: "卡牌详情" })).toHaveAttribute(
+    expect(screen.getByRole("dialog", { name: "叶芽的卡牌与行动" })).toHaveAttribute(
       "aria-modal",
       "false",
     );
@@ -65,7 +65,7 @@ describe("对局工作区", () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "逐步回放" }));
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "卡牌详情" })).toBeNull(),
+      expect(screen.queryByRole("dialog", { name: "叶芽的卡牌与行动" })).toBeNull(),
     );
     expect(
       screen.getByRole("slider", { name: "回放进度" }),

@@ -5,7 +5,8 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { loadDefaultPrompts } from '../../../packages/agent/src/prompts.ts';
-import type { MatchCommandInput, CreateMatchInput, DeckData, Viewer } from '../../../packages/protocol/src/index.ts';
+import { validationError } from '../../../packages/agent/src/schema.ts';
+import { HumanTurnActivationSchema, type HumanTurnActivation, type MatchCommandInput, type CreateMatchInput, type DeckData, type Viewer } from '../../../packages/protocol/src/index.ts';
 import { ApiError } from './storage.ts';
 import { GameService, type ServiceOptions } from './service.ts';
 
@@ -59,11 +60,42 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
   app.post('/api/evaluations/:id/comparisons', request => { requiredObject(request.body); return service.evaluations.compare(param(request),request.body); });
   app.get('/api/matches', async () => ({ matches: [...service.matches.values()].map(match => match.summary()).sort((a,b) => b.createdAt.localeCompare(a.createdAt)) }));
   app.post('/api/matches', async request => { requiredObject(request.body); return service.createMatch(body<CreateMatchInput>(request)); });
-  app.get('/api/matches/:id', async request => { const match = service.match(param(request)); const view = viewer(request, match.defaultViewer()); match.assertViewer(view); return match.view(view); });
+  app.get('/api/matches/:id', async request => {
+    const match = service.match(param(request)); const view = viewer(request, match.defaultViewer()); match.assertViewer(view);
+    const human = match.state.players.find(player => player.id === view && player.kind === 'human');
+    return { ...match.view(view), humanAction: human ? service.humanController(match, human.id).view(view) : null };
+  });
   app.post('/api/matches/:id/commands', async request => {
     const match = service.match(param(request)); requiredObject(request.body);
     const { playerId, ...input } = body<MatchCommandInput>(request);
     const receipt = await match.command(match.humanPlayer(playerId), input); service.wake(match); return receipt;
+  });
+  app.post('/api/matches/:id/actions', async (request, reply) => {
+    const match = service.match(param(request)); requiredObject(request.body);
+    const playerId = match.humanPlayer(body<{ playerId: unknown }>(request).playerId);
+    return reply.code(202).send(await service.humanController(match, playerId).start(request.body));
+  });
+  app.post('/api/matches/:id/actions/activate', async (request, reply) => {
+    const match = service.match(param(request)); requiredObject(request.body);
+    const malformed = validationError(HumanTurnActivationSchema, request.body);
+    if (malformed) throw new ApiError('INVALID_TURN_ACTIVATION', malformed);
+    const playerId = match.humanPlayer(body<HumanTurnActivation>(request).playerId);
+    await service.prepareHumanTurn(match);
+    return reply.code(202).send(service.humanController(match, playerId).view(playerId));
+  });
+  app.get('/api/matches/:id/actions/current', request => {
+    const match = service.match(param(request)); const playerId = match.humanPlayer(query(request).playerId ?? match.defaultViewer());
+    return service.humanController(match, playerId).view(playerId);
+  });
+  app.post('/api/matches/:id/actions/:actionId/choice', async (request, reply) => {
+    const match = service.match(param(request)); requiredObject(request.body);
+    const playerId = match.humanPlayer(body<{ playerId: unknown }>(request).playerId);
+    return reply.code(202).send(await service.humanController(match, playerId).answer(param(request, 'actionId'), request.body));
+  });
+  app.post('/api/matches/:id/actions/:actionId/control', async (request, reply) => {
+    const match = service.match(param(request)); requiredObject(request.body);
+    const playerId = match.humanPlayer(body<{ playerId: unknown }>(request).playerId);
+    return reply.code(202).send(await service.humanController(match, playerId).control(param(request, 'actionId'), request.body));
   });
   app.get('/api/matches/:id/history', async request => { const match = service.match(param(request)); const view = viewer(request, match.defaultViewer()); match.assertViewer(view); const q = query(request); return match.history(view, q.after, q.limit === undefined ? undefined : Number(q.limit)); });
   app.get('/api/matches/:id/replay', async request => { const match = service.match(param(request)); const view = viewer(request, match.defaultViewer()); match.assertViewer(view, true); return match.view(view, Number(query(request).index ?? 0)); });
@@ -84,6 +116,7 @@ export async function buildApp(options: AppOptions = {}): Promise<FastifyInstanc
     const match = service.match(param(request)); requiredObject(request.body); const input = body<{kind:'restore';targetEventId:string}|{kind:'abort';reason:string}>(request);
     if (input.kind !== 'restore' && input.kind !== 'abort') throw new ApiError('INVALID_DEBUG', '无效调试操作');
     if (service.drivers.has(match.state.id)) throw new ApiError('RUNTIME_RUNNING', '请先暂停 AI 再调试', 409);
+    if (match.humanActionLock) throw new ApiError('HUMAN_ACTION_IN_PROGRESS', '请先完成或取消当前行动再调试', 409);
     await match.debug(input); const view = match.defaultViewer(); return match.view(view);
   });
   app.get('/api/matches/:id/export', async request => { const match = service.match(param(request)); if (match.meta.mode === 'human_ai' && match.state.flow.phase !== 'finished') throw new ApiError('HIDDEN_INFORMATION', '人机对局结束后才能导出完整记录', 403); return { schemaVersion: 1, match: match.summary(), records: match.records }; });

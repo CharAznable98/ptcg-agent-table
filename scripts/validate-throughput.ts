@@ -2,8 +2,9 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { Type } from '@sinclair/typebox';
 import { AgentRuntime, FileSessionStore, JsonlTrace, SecretRedactor, atomicJson, createModel, loadModelConfig, loadPrompts } from '../packages/agent/src/index.ts';
-import type { MatchPort, ModelGateway, ModelItem, ModelRequest } from '../packages/agent/src/types.ts';
+import type { MatchPort, ModelGateway, ModelItem, ModelRequest, ToolDefinition } from '../packages/agent/src/types.ts';
 import { GameService } from '../apps/server/src/service.ts';
 import { asJson } from '../apps/server/src/match.ts';
 import type { DeckData, PlayerId } from '../packages/protocol/src/index.ts';
@@ -52,18 +53,29 @@ try {
     const receipt = await match.command(actor, { requestId: randomUUID(), revision: match.state.revision, command });
     assert.equal(receipt.status, 'committed');
   }
+  // 该夹具单独验证 AI 循环；先收敛首抽并关闭人类自动调度，避免两个驱动写同一席位。
+  await service.prepareHumanTurn(match);
+  await service.close();
   assert.equal(match.state.flow.operator, 'A');
   const readyCursor = (await match.observe(match.state.id, 'A', null)).cursor;
   const names = Array.from({ length: 16 }, (_, n) => `合成步骤${n + 1}`);
   const completed = () => names.every((name, n) => match.state.playerMarkers.A?.[name] === n + 1);
+  let consumeObservation = false;
+  const acknowledge: ToolDefinition = { name: 'acknowledge_observation', description: '确认读取观察，不修改牌桌', effect: 'read', inputSchema: Type.Object({}, { additionalProperties: false }) };
   const port: MatchPort = {
     async observe(matchId, playerId, after) {
       const frame = await match.observe(matchId, playerId, after ?? readyCursor);
+      if (consumeObservation) return { ...frame, status: 'active', snapshot: asJson({ ...frame.snapshot as object, task: '只调用acknowledge_observation一次，确认已读取当前新增观察。不要执行牌桌操作。' }), tools: [acknowledge], toolCatalog: [acknowledge] };
       const marking = !completed();
       const task = marking ? '这是操作吞吐验证片段。依次给玩家A设置16个独立marker：合成步骤1=1，依次至合成步骤16=16。只调用set_state，target为player A，field.key为marker。操作之间没有随机或开牌。优先用execute_sequence提交每批8步，一共两批。不要修改牌面或报告对局胜负。' : match.state.flow.phase === 'check' ? '阶段参数验证：检查已完成，请用set_turn进入B的回合（phase=turn，playerId=B）。不要报告胜负。' : '阶段参数验证：现在请用set_turn进入回合间检查（phase=check，playerId=null）。不要报告胜负。';
       return { ...frame, snapshot: asJson({ ...frame.snapshot as object, task }), tools: frame.tools.filter(t => t.name === (marking ? 'set_state' : 'set_turn')), status: !marking && match.state.flow.turnOwner === 'B' ? 'waiting' : frame.status };
     },
     async execute(request) {
+      if (request.tool === 'acknowledge_observation') {
+        assert.equal(consumeObservation, true); consumeObservation = false;
+        assert.deepEqual(request.arguments, {});
+        return { status: 'read', revision: match.state.revision, data: { acknowledged: true } };
+      }
       if (request.tool === 'set_turn') {
         assert.ok(completed());
         assert.deepEqual(request.arguments, match.state.flow.phase === 'check' ? { phase: 'turn', playerId: 'B' } : { phase: 'check', playerId: null });
@@ -82,20 +94,24 @@ try {
   await runtime.create({ matchId: match.state.id, playerId: 'A', deck: asJson(deck), strategy: { version: 1, content: '' }, rules: service.rulesText() });
   const result = await runtime.activate(match.state.id, 'A', signal);
   assert.equal(result.status, 'waiting', result.reason); assert.ok(completed()); assert.ok(result.decisions <= 6);
+  // 等待帧只入队，尚未交给模型；显式消费后才属于可压缩前缀。
+  consumeObservation = true;
+  assert.equal((await runtime.activate(match.state.id, 'A', signal)).decisions, 1);
   const before = (await store.load(match.state.id, 'A'))!;
-  assert.equal(before.toolCalls, 18); assert.equal(before.compactions, 0, '固定资料不应触发压缩');
+  assert.equal(before.toolCalls, 19); assert.equal(before.compactions, 0, '固定资料不应触发压缩');
   await runtime.compact(match.state.id, 'A');
   const first = (await store.load(match.state.id, 'A'))!;
   const declared = await match.execute({ matchId: match.state.id, playerId: 'B', requestId: randomUUID(), revision: match.state.revision, tool: 'declare', arguments: { text: '新增的合成增量事实：验证标识 9247。' } });
   assert.equal(declared.status, 'committed');
-  assert.equal((await runtime.activate(match.state.id, 'A', signal)).decisions, 0);
+  consumeObservation = true;
+  assert.equal((await runtime.activate(match.state.id, 'A', signal)).decisions, 1);
   await runtime.compact(match.state.id, 'A');
   const final = (await store.load(match.state.id, 'A'))!;
   const compactInputs = requests.filter(r => r.role === 'compactor').map(r => JSON.parse(r.input[0]!.content as string));
   assert.equal(final.compactions, 2); assert.ok(compactInputs.length >= 2 && compactInputs.length <= 4);
   const secondInputs = compactInputs.filter(input => input.previousSummary !== null);
   assert.ok(secondInputs.length >= 1);
-  for (const input of secondInputs) { assert.deepEqual({ ...input.previousSummary, evidenceRefs: input.previousSummary.evidenceRefs.map((ref: string) => input.evidenceSources[ref]) }, first.summary); assert.equal(input.observations.length, 1); assert.equal(input.toolHistory.length, 0); }
+  for (const input of secondInputs) { assert.deepEqual({ ...input.previousSummary, evidenceRefs: input.previousSummary.evidenceRefs.map((ref: string) => input.evidenceSources[ref]) }, first.summary); assert.equal(input.observations.length, 1); assert.equal(input.toolHistory.length, 1); assert.equal(input.toolHistory[0].request.tool, 'acknowledge_observation'); }
   assert.match(final.summary!.text, /9247/); assert.equal(final.observations.length, before.observations.length + 1);
   const count = requests.length; await runtime.compact(match.state.id, 'A'); assert.equal(requests.length, count);
   for (const request of requests.filter(r => r.role === 'player')) {
@@ -114,8 +130,9 @@ try {
   assert.deepEqual(await hashes(), sourceHashes, '验证期间源码与规则不得变化');
   await atomicJson(join(directory, 'source-manifest-after.json'), await hashes());
   for (const path of await files(directory)) { const content = await readFile(path, 'utf8'); assert.equal(content, redactor.clean(content), '凭证不得进入记录'); }
+  const atomicCommands = before.toolHistory.filter(item => (item.request as { tool: string }).tool !== 'acknowledge_observation' && (item.receipt as { status: string }).status === 'committed').length;
   const manifest = { status: 'passed', runId, model: config.model, reasoningEffort: config.reasoningEffort, fast: config.fast, promptVersion: prompts.version, elapsedMs: Date.now() - startedAt,
-    playerDecisions: result.decisions, atomicCommands: before.toolCalls, automaticCompactions: before.compactions, explicitCompactions: final.compactions,
+    playerDecisions: result.decisions, atomicCommands, readAcknowledgements: final.toolHistory.filter(item => (item.request as { tool: string }).tool === 'acknowledge_observation').length, automaticCompactions: before.compactions, explicitCompactions: final.compactions,
     modelCalls: starts.length, structuredRetries: events.filter(e => e.kind === 'structured_rejected').length, retainedObservations: final.observations.length, retainedToolHistory: final.toolHistory.length, secondCompactionObservations: secondInputs[0]!.observations.length,
     calls: finishes.map(e => ({ role: e.role, elapsedMs: e.elapsedMs, usage: (e.response as Record<string, unknown>).usage })),
     checks: { singleSnapshotAndDeck: true, deltaOnlyCompaction: true, previousSummaryMerged: true, originalHistoryRetained: true, sourceHashesUnchanged: true, hiddenOpponentCardExcluded: true, validPhaseArguments: true, credentialLeaks: 0 },

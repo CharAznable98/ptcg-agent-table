@@ -251,8 +251,8 @@ describe("记录面板交互", () => {
     expect(events).toEqual([first, second]);
     const button = screen.getByRole("button", { name: "回到最新" });
     expect(button).toHaveClass("history-to-latest");
-    expect(button).toHaveTextContent("");
-    expect(button.querySelector("svg")).not.toBeNull();
+    expect(button).toHaveAccessibleName("回到最新");
+    expect(button).toHaveTextContent("↑");
   });
   it("定位、异议、调试恢复均保留原事件；撤销事件不能恢复", () => {
     const event = recorded(
@@ -265,11 +265,15 @@ describe("记录面板交互", () => {
       view,
     );
     const callbacks = props({ ...view, events: [event] });
-    const { rerender } = render(<MatchHistory {...callbacks} />);
+    const { rerender, container } = render(<MatchHistory {...callbacks} />);
     fireEvent.click(screen.getByTitle("定位相关区域"));
     expect(callbacks.onLocate).toHaveBeenCalledWith([
       { zoneId: "A:bench", index: 0 },
     ]);
+    expect(screen.queryByText("提出异议")).not.toBeInTheDocument();
+    const actionDetails = container.querySelector<HTMLDetailsElement>(".history-action-details")!;
+    actionDetails.open = true;
+    fireEvent(actionDetails, new Event("toggle"));
     fireEvent.click(screen.getByText("提出异议"));
     expect(callbacks.onObject).toHaveBeenCalledWith(event);
     fireEvent.click(screen.getByText("恢复至此之前"));
@@ -326,7 +330,11 @@ describe("记录面板交互", () => {
     );
     expect(log.scrollTop).toBe(100);
     expect(container.querySelectorAll("pre")).toHaveLength(0);
-    const details = container.querySelector("details")!;
+    const actionDetails = container.querySelector<HTMLDetailsElement>(".history-action-details")!;
+    actionDetails.open = true;
+    fireEvent(actionDetails, new Event("toggle"));
+    expect(container.querySelectorAll("pre")).toHaveLength(0);
+    const details = container.querySelector<HTMLDetailsElement>(".json-details")!;
     details.open = true;
     fireEvent(details, new Event("toggle"));
     expect(container.querySelector("pre")).toHaveTextContent("第一条");

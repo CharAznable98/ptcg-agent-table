@@ -8,6 +8,7 @@ const promptNames = {
   judge: "独立裁判",
   summary: "赛后总结",
   compactor: "上下文压缩",
+  humanExecutor: "人类操作代理",
 } as const;
 export function Settings() {
   const [prompts, setPrompts] = useState<PromptConfig | null>(null);
@@ -331,6 +332,8 @@ export function Settings() {
                       ? "用于终局后的策略总结。"
                       : tab === "compactor"
                         ? "用于局内上下文压缩。"
+                        : tab === "humanExecutor"
+                          ? "执行人类操牌意图，所有游戏选择交由人完成。"
                         : "用于模型工具调用与错误反馈。"}
               </p>
               {tab === "tools" || tab === "feedback" ? (
@@ -344,7 +347,7 @@ export function Settings() {
                   <textarea
                     className="prompt-text"
                     rows={26}
-                    value={prompts[tab]}
+                    value={prompts[tab] ?? ""}
                     onChange={(event) =>
                       setPrompts({ ...prompts, [tab]: event.target.value })
                     }

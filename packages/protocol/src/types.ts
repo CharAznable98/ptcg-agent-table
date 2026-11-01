@@ -1,4 +1,5 @@
 import type { StrategyPolicy } from './strategy.ts';
+import type { ActionReference, HumanActionView } from './human-actions.ts';
 import type { TSchema } from '@sinclair/typebox';
 import type { CardData, DeckData, Visibility } from './cards.ts';
 import type { CommandEnvelope, GameCommand, GameResult, PlayerId, Position, Proposal, Selection } from './commands.ts';
@@ -82,14 +83,14 @@ export interface TableView {
   ownDeck?: DeckData;
   playerMarkers: Partial<Record<PlayerId, Record<string, string | number | boolean>>>;
 }
-export interface PublicEvent { id: string; sequence: number; revision: number; at: string; actor: PlayerId | 'system'; commandKind: string; label: string; data: Json; revokedBy?: string }
+export interface PublicEvent { id: string; sequence: number; revision: number; at: string; actor: PlayerId | 'system'; commandKind: string; label: string; data: Json; revokedBy?: string; action?: ActionReference }
 export interface DisputeView {
   id: string; targetEventId: string; raisedBy: PlayerId; respondent: PlayerId; reason: string;
   proposalId: string; proposal: Proposal; status: 'awaiting_response' | 'awaiting_judge' | 'applying' | 'closed';
   ruling?: { verdict: 'uphold' | 'dismiss'; ruleRefs: string[]; steps: Json[] };
 }
 export interface RuntimeStatus { status: 'idle' | 'running' | 'waiting' | 'paused' | 'aborted' | 'completed'; error?: string; activePlayer?: PlayerId; modelCalls?: number }
-export interface MatchView extends TableView { evaluation?: { id: string; phase: 'baseline' | 'comparison' }; mode: MatchMode; events: PublicEvent[]; cursor: string; dispute: DisputeView | null; runtime: RuntimeStatus; summaries: Partial<Record<PlayerId, { status: 'pending' | 'completed' | 'failed'; version?: number; error?: string }>>; replay?: { index: number; total: number } }
+export interface MatchView extends TableView { evaluation?: { id: string; phase: 'baseline' | 'comparison' }; mode: MatchMode; events: PublicEvent[]; cursor: string; dispute: DisputeView | null; runtime: RuntimeStatus; summaries: Partial<Record<PlayerId, { status: 'pending' | 'completed' | 'failed'; version?: number; error?: string }>>; replay?: { index: number; total: number }; humanAction?: HumanActionView | null }
 export interface MatchSummary { id: string; createdAt: string; mode: MatchMode; players: { id: PlayerId; name: string; kind: 'human' | 'ai' }[]; phase: GameFlow['phase']; result: GameResult | null; runtime: RuntimeStatus; revision: number }
 export type MatchMode = 'ai_ai' | 'human_ai' | 'local';
 export interface CreateMatchInput { mode: MatchMode; players: [{ name: string; kind: 'human' | 'ai'; deckId?: string; deck?: DeckData; opponentId?: string }, { name: string; kind: 'human' | 'ai'; deckId?: string; deck?: DeckData; opponentId?: string }]; autoRun?: boolean }
@@ -103,7 +104,7 @@ export type CommandReceipt =
 export interface DeckRecord { id: string; deck: DeckData; createdAt: string; updatedAt: string }
 export interface StrategyVersion { version: number; content: string; createdAt: string; source: { kind: 'initial' | 'user_edit' } | { kind: 'match'; matchId: string; playerId: string } | { kind: 'migration'; fromVersion: number }; policy?: StrategyPolicy; updateId?: string; previousVersion?: number; changeSummary?: string; evidenceRefs?: string[] }
 export interface OpponentRecord { schemaVersion: 1; id: string; name?: string; deck: DeckData; strategies: StrategyVersion[]; origin?: { opponentId: string } }
-export interface PromptConfig { schemaVersion: 1; player: string; judge: string; summary: string; compactor: string; toolDescriptions: Record<string, string>; feedback: Record<string, string>; version?: string }
+export interface PromptConfig { schemaVersion: 1; player: string; judge: string; summary: string; compactor: string; humanExecutor?: string; toolDescriptions: Record<string, string>; feedback: Record<string, string>; version?: string }
 export interface ErrorResponse { error: { code: string; message: string } }
 export interface ToolSpec { name: string; description: string; inputSchema: TSchema; effect: 'read' | 'command' }
 

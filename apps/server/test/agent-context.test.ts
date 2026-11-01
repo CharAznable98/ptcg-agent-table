@@ -20,6 +20,7 @@ async function fixture(t: import('node:test').TestContext) {
     const command = choice.kind === 'choose_first' ? { kind: 'choose_first' as const, firstPlayer: 'A' as const } : { kind: 'initial_placement' as const, active: { zoneId: actor + ':hand', index: 0 }, bench: [] };
     assert.equal((await match.command(actor, { requestId: randomUUID(), revision: match.state.revision, command })).status, 'committed');
   }
+  await service.prepareHumanTurn(match);
   const execute = (actor: PlayerId, command: GameCommand, requestId = randomUUID()) => { const { kind, ...args } = command; return match.execute({ matchId: match.state.id, playerId: actor, requestId, revision: match.state.revision, tool: kind, arguments: args }); };
   return { match, execute };
 }

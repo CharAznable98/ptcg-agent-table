@@ -30,6 +30,11 @@ export function migrateContext(session: PlayerSession): boolean {
 }
 
 type Wire = NonNullable<ContextProgress['wire']>;
+/** AI 对战与人类执行代理共用的只追加编码状态；不包含策略或决策循环。 */
+export type AppendContext = Pick<Wire, 'format' | 'items' | 'lastSnapshot' | 'revision' | 'catalogs'>;
+export function createAppendContext(): AppendContext {
+  return { format: 'append-state-v1', items: [], lastSnapshot: null, revision: null, catalogs: { cards: {}, flows: {} } };
+}
 export type SnapshotUpdate = { path: (string | number)[]; value: Json } | { path: (string | number)[]; remove: true };
 const object = (value: Json): value is Record<string, Json> => !!value && typeof value === 'object' && !Array.isArray(value);
 const equal = isDeepStrictEqual;
@@ -81,7 +86,7 @@ export function startContextSegment(session: PlayerSession, historyStart = 0): W
   return wire;
 }
 
-function appendWire(wire: Wire, raw: ModelItem, observations: Observation[] = []): void {
+export function appendContextMessage(wire: AppendContext, raw: ModelItem, observations: Observation[] = []): void {
   const cards = cardMessages([linkNativeObservations(raw, observations)]);
   const events = eventMessages(cards.items, true);
   const knownCards: Record<string, unknown> = {}, eventFlows: Record<string, unknown> = {};
@@ -101,6 +106,12 @@ function appendWire(wire: Wire, raw: ModelItem, observations: Observation[] = []
   if (Object.keys(catalog).length && item.type === 'function_call_output') wire.items.push(userMessage(catalog));
 }
 
+/** 初次发送完整权限快照，后续沿用同一差量格式；从不修改先前投递的消息。 */
+export function appendContextSnapshot(wire: AppendContext, snapshot: Json, revision: number, fields: Record<string, unknown> = {}): void {
+  appendContextMessage(wire, userMessage({ ...fields, revision, ...(wire.revision === null ? { snapshot } : { snapshotUpdates: snapshotUpdates(wire.lastSnapshot, snapshot) }) }));
+  wire.lastSnapshot = structuredClone(snapshot); wire.revision = revision;
+}
+
 function liveMessage(item: ModelItem): ModelItem {
   if (item.role !== 'user' || typeof item.content !== 'string') return item;
   try {
@@ -116,8 +127,8 @@ export function playerInput(session: PlayerSession, frame: PlayerFrame, maxActio
   if (wire.summaryKey !== JSON.stringify(session.summary ?? null)) throw new Error('CONTEXT_SUMMARY_CHANGED_WITHOUT_COMPACTION');
   if (wire.sourceMessages > session.messages.length) throw new Error('CONTEXT_SOURCE_MESSAGES_TRUNCATED');
   if (!wire.items.length) {
-    appendWire(wire, userMessage({ playerId: session.playerId, deck: session.deck, initialStrategy: playerStrategyProjection(session.strategy, session.policyScope), observationFormat: 'compact-events-v1', stateFormat: wire.format }));
-    if (session.summary) appendWire(wire, userMessage({ memory: session.summary, memoryCoverage: {
+    appendContextMessage(wire, userMessage({ playerId: session.playerId, deck: session.deck, initialStrategy: playerStrategyProjection(session.strategy, session.policyScope), observationFormat: 'compact-events-v1', stateFormat: wire.format }));
+    if (session.summary) appendContextMessage(wire, userMessage({ memory: session.summary, memoryCoverage: {
       observationsThrough: session.context!.observationOffset, toolsThrough: session.context!.toolOffset,
       lastEventId: session.observations[session.context!.observationOffset - 1]?.id ?? null,
       lastRevision: session.observations[session.context!.observationOffset - 1]?.revision ?? null,
@@ -129,11 +140,11 @@ export function playerInput(session: PlayerSession, frame: PlayerFrame, maxActio
     try { for (const event of JSON.parse(item.content).observations ?? []) if (typeof event.id === 'string') available.set(event.id, event); } catch { /* 非观察消息不加入来源集合。 */ }
   }
   const availableObservations = [...available.values()];
-  for (; wire.sourceMessages < session.messages.length; wire.sourceMessages++) appendWire(wire, liveMessage(session.messages[wire.sourceMessages]!), availableObservations);
+  for (; wire.sourceMessages < session.messages.length; wire.sourceMessages++) appendContextMessage(wire, liveMessage(session.messages[wire.sourceMessages]!), availableObservations);
   const snapshot = currentSnapshot(frame.snapshot);
   const execution = { mode: 'sequential', maxActionsPerDecision: maxActions, availableTools: availableTools ?? frame.tools?.map(tool => tool.name) ?? [],
     ...(maxActions > 1 && (frame.toolCatalog ?? frame.tools ?? []).some(tool => tool.argumentEncoding === 'ptcg-positions-v1') ? { argumentFormat: 'ptcg-positions-v1' } : {}) };
-  appendWire(wire, userMessage({ revision: frame.revision, ...(wire.revision === null ? { snapshot } : { snapshotUpdates: snapshotUpdates(wire.lastSnapshot, snapshot) }), execution }));
+  appendContextMessage(wire, userMessage({ revision: frame.revision, ...(wire.revision === null ? { snapshot } : { snapshotUpdates: snapshotUpdates(wire.lastSnapshot, snapshot) }), execution }));
   wire.lastSnapshot = structuredClone(snapshot); wire.revision = frame.revision;
   // 后续追加不改变已交给网关的数组；消息本身一旦编码便不再修改。
   return wire.items.slice();
@@ -179,24 +190,30 @@ export function recentHistory(messages: ModelItem[], budget: number, measure: (m
   return tail;
 }
 
-/** 读历史是既有观察的索引，不把同一整页再次送进压缩／复盘。原件不变。 */
+/** 读历史是既有观察的索引；共享逻辑同时服务AI对战和人类执行代理。 */
+export function compactHistoryReceipt(receipt: ModelItem, known: ReadonlySet<string>): ModelItem {
+  const data = receipt.data as { entries?: { id?: string; revokedBy?: string }[]; cursor?: string; previousCursor?: string; hasMore?: boolean; hasPrevious?: boolean; direction?: string; oversizedEntry?: boolean; maxBytes?: number } | undefined;
+  if (receipt.status !== 'read' || !Array.isArray(data?.entries)) return receipt;
+  const entries = data.entries;
+  const novel = entries.filter(entry => !entry.id || !known.has(entry.id));
+  return { ...receipt, data: {
+    source: 'observations', entryCount: entries.length, firstEventId: entries[0]?.id ?? null, lastEventId: entries.at(-1)?.id ?? null,
+    evidenceRefs: [...new Set(entries.flatMap(entry => entry.id && known.has(entry.id) ? [entry.id] : []))],
+    cursor: data.cursor ?? null, hasMore: data.hasMore ?? null,
+    previousCursor: data.previousCursor ?? null, hasPrevious: data.hasPrevious ?? null,
+    direction: data.direction ?? null, oversizedEntry: data.oversizedEntry ?? false, maxBytes: data.maxBytes ?? null,
+    revokedEvidence: entries.flatMap(entry => entry.id && entry.revokedBy ? [{ id: entry.id, revokedBy: entry.revokedBy }] : []),
+    ...(novel.length ? { entries: novel } : {}),
+  } };
+}
+
+/** 历史原件不变；只引用同一模型段内实际可达的完整观察。 */
 export function reviewTools(session: PlayerSession, start = 0): ModelItem[] {
   const known = new Set(session.observations.map(event => event.id));
   return session.toolHistory.slice(start).map(item => {
     const request = item.request as { tool?: string } | undefined;
-    const receipt = item.receipt as { status?: string; data?: { entries?: { id?: string; revokedBy?: string }[]; cursor?: string; previousCursor?: string; hasMore?: boolean; hasPrevious?: boolean; direction?: string; oversizedEntry?: boolean; maxBytes?: number } } | undefined;
-    if (request?.tool !== 'read_history' || receipt?.status !== 'read' || !Array.isArray(receipt.data?.entries)) return item;
-    const entries = receipt.data.entries;
-    const novel = entries.filter(entry => !entry.id || !known.has(entry.id));
-    return { ...item, receipt: { ...receipt, data: {
-      source: 'observations', entryCount: entries.length, firstEventId: entries[0]?.id ?? null, lastEventId: entries.at(-1)?.id ?? null,
-      evidenceRefs: [...new Set(entries.flatMap(entry => entry.id && known.has(entry.id) ? [entry.id] : []))],
-      cursor: receipt.data.cursor ?? null, hasMore: receipt.data.hasMore ?? null,
-      previousCursor: receipt.data.previousCursor ?? null, hasPrevious: receipt.data.hasPrevious ?? null,
-      direction: receipt.data.direction ?? null, oversizedEntry: receipt.data.oversizedEntry ?? false, maxBytes: receipt.data.maxBytes ?? null,
-      revokedEvidence: entries.flatMap(entry => entry.id && entry.revokedBy ? [{ id: entry.id, revokedBy: entry.revokedBy }] : []),
-      ...(novel.length ? { entries: novel } : {}),
-    } } };
+    const receipt = item.receipt as ModelItem | undefined;
+    return request?.tool === 'read_history' && receipt ? { ...item, receipt: compactHistoryReceipt(receipt, known) } : item;
   });
 }
 

@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import type {
   CardData,
+  GameCommand,
   GroupView,
   ObjectView,
   Position,
@@ -8,6 +10,7 @@ import type {
 } from "../../../packages/protocol/src/index.ts";
 import { Button } from "./ui.tsx";
 import { CardBack } from "./CardBack.tsx";
+import { useDirectTable } from "./direct-manipulation.tsx";
 import {
   conditionNames,
   positionKey,
@@ -17,7 +20,7 @@ import {
 
 // 关闭详情仍恢复键盘焦点，但这次程序触发的 focus 不代表再次请求预览。
 const inspectorFocusRestores = new WeakSet<HTMLElement>();
-function restoreInspectorFocus(target: HTMLElement) {
+export function restoreInspectorFocus(target: HTMLElement) {
   inspectorFocusRestores.add(target);
   try {
     target.focus();
@@ -148,6 +151,17 @@ export function CardFace({
   );
 }
 function AttachedSummary({ object }: { object: GroupView }) {
+  const direct = useDirectTable();
+  if (direct?.manual) return object.attached.length ? (
+    <div className="attached-summary manual-attached" aria-label="附着卡">
+      {object.attached.map((member, index) => (
+        <button key={index} type="button" disabled={!direct.enabled} title={direct.canPick(member) ? "拖动调整附着卡" : undefined}
+          {...direct.sourceProps({ position: member.position, kind: "card" }, direct.canPick(member))}>
+          {member.kind === "card" ? member.card.name : "隐藏卡牌"}
+        </button>
+      ))}
+    </div>
+  ) : null;
   const labels = new Map<string, number>();
   for (const member of object.attached) {
     const name =
@@ -162,11 +176,87 @@ function AttachedSummary({ object }: { object: GroupView }) {
     <div className="attached-summary" aria-label="附着卡">
       {[...labels].map(([name, count]) => (
         <span key={name} title={`${name} ${count} 张`}>
-          {name} ×{count}
+          <span className="attached-name">{name}</span><b className="attached-count">×{count}</b>
         </span>
       ))}
     </div>
   ) : null;
+}
+function ManualStateTools({ object, busy, onChange }: { object: GroupView; busy: boolean; onChange: (field: Extract<GameCommand, { kind: "set_state" }>["field"]) => void }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+  const toolbarRef = useRef<HTMLElement>(null);
+  const lastControl = useRef<HTMLElement | null>(null);
+  const pendingFocus = useRef<HTMLElement | null>(null);
+  const wasBusy = useRef(busy);
+  useEffect(() => { setTarget(document.querySelector<HTMLElement>(".table-column")); }, []);
+  useEffect(() => {
+    const followFocus = (event: FocusEvent) => {
+      const focused = event.target;
+      if (!(focused instanceof HTMLElement)) return;
+      if (toolbarRef.current?.contains(focused)) lastControl.current = focused;
+      else if (focused !== document.body && focused !== document.documentElement) {
+        lastControl.current = null;
+        pendingFocus.current = null;
+      }
+    };
+    document.addEventListener("focusin", followFocus);
+    return () => document.removeEventListener("focusin", followFocus);
+  }, []);
+  useLayoutEffect(() => {
+    const focused = document.activeElement;
+    const lostFocus = focused === document.body || focused === document.documentElement;
+    if (busy && !wasBusy.current && (lostFocus || toolbarRef.current?.contains(focused))) {
+      pendingFocus.current = lastControl.current;
+    } else if (!busy && wasBusy.current) {
+      const control = pendingFocus.current;
+      if (lostFocus && control?.isConnected) {
+        const available = !control.matches(":disabled") ? control : toolbarRef.current?.querySelector<HTMLElement>("button:not(:disabled), select:not(:disabled)");
+        available?.focus({ preventScroll: true });
+      }
+      pendingFocus.current = null;
+    }
+    wasBusy.current = busy;
+  }, [busy]);
+  const name = objectName(object);
+  const toolbar = <section ref={toolbarRef} className="manual-state-toolbar" aria-busy={busy || undefined} aria-label={`${positionLabel(object.position)}${name}状态调整`}>
+    <span className="manual-target-name" title={`${positionLabel(object.position)}${name}`}>{name}</span>
+    <span className="manual-target-damage">伤害 <b>{object.state.damageCounters * 10}</b></span>
+    <div className="manual-state-buttons">
+      <button type="button" aria-label={`${name}减少10伤害`} disabled={busy || !object.state.damageCounters}
+        onClick={() => !busy && onChange({ key: "damageCounters", value: Math.max(0, object.state.damageCounters - 1) })}>−10</button>
+      <button type="button" aria-label={`${name}增加10伤害`} disabled={busy}
+        onClick={() => !busy && onChange({ key: "damageCounters", value: object.state.damageCounters + 1 })}>+10</button>
+      <select aria-label={`${name}调整特殊状态`} disabled={busy} value="" onChange={(event) => {
+        if (busy) return;
+        const condition = event.target.value;
+        onChange({ key: "specialConditions", value: condition === "clear" ? [] : object.state.specialConditions.includes(condition) ? object.state.specialConditions.filter((value) => value !== condition) as ("poisoned" | "burned" | "asleep" | "paralyzed" | "confused")[] : [...object.state.specialConditions, condition] as ("poisoned" | "burned" | "asleep" | "paralyzed" | "confused")[] });
+      }}>
+        <option value="" disabled>特殊状态</option>
+        {Object.entries(conditionNames).map(([value, label]) => <option key={value} value={value}>{object.state.specialConditions.includes(value) ? "清除" : "设置"}{label}</option>)}
+        <option value="clear">清除全部</option>
+      </select>
+    </div>
+  </section>;
+  return target ? createPortal(toolbar, target) : null;
+}
+/** 焦点在信息区时只滚动额外信息，卡名、HP 和伤害始终留在固定区域。 */
+function scrollGroupExtra(event: ReactKeyboardEvent<HTMLDivElement>) {
+  if (event.target !== event.currentTarget) return;
+  const panel = event.currentTarget;
+  const page = Math.max(20, panel.clientHeight);
+  let next: number;
+  switch (event.key) {
+    case "Home": next = 0; break;
+    case "End": next = panel.scrollHeight - panel.clientHeight; break;
+    case "ArrowUp": next = panel.scrollTop - 20; break;
+    case "ArrowDown": next = panel.scrollTop + 20; break;
+    case "PageUp": next = panel.scrollTop - page; break;
+    case "PageDown": next = panel.scrollTop + page; break;
+    default: return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  panel.scrollTop = Math.max(0, Math.min(next, panel.scrollHeight - panel.clientHeight));
 }
 export function ObjectCard({
   object,
@@ -189,6 +279,7 @@ export function ObjectCard({
   miniature?: boolean;
   showBack?: boolean;
 }) {
+  const direct = useDirectTable();
   const chosen = selected.some(
     (item) => positionKey(item) === positionKey(object.position),
   );
@@ -201,51 +292,66 @@ export function ObjectCard({
   );
   const top = object.kind === "group" ? object.stack.at(-1) : object;
   const name = objectName(object);
+  const canDrag = direct?.canPick(object) ?? false;
+  const ghost = direct?.isGhost(object.position) ?? false;
+  const directTarget = direct?.targetProps(object.position) ?? {};
   return (
     <div
-      className={`${object.kind === "group" ? "group-object" : "single-object"} ${chosen ? "selected" : ""} ${located ? "is-located" : ""} ${miniature ? "miniature" : ""}`}
-      data-position-key={positionKey(object.position)}
-      onMouseEnter={() => onPreview?.(object)}
-      onMouseLeave={() => onPreview?.(null)}
-      onFocusCapture={(event) => {
-        if (!inspectorFocusRestores.has(event.target as HTMLElement))
-          onPreview?.(object);
-      }}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-          onPreview?.(null);
-      }}
+      className={`${object.kind === "group" ? "group-object" : "single-object"} ${chosen ? "selected" : ""} ${located ? "is-located" : ""} ${miniature ? "miniature" : ""} ${canDrag ? "can-manipulate" : ""} ${ghost ? "setup-ghost" : ""}`}
+      data-position-key={ghost ? undefined : positionKey(object.position)}
+      data-displayed-position={ghost ? positionKey(object.position) : undefined}
+      data-draft-source={ghost ? positionKey(direct!.sourcePosition(object.position)) : undefined}
+      {...directTarget}
     >
       <button
         className="object-button"
-        aria-label={`${interactive ? "选择" : "查看"}${positionLabel(object.position)}${object.kind === "group" ? "卡牌组" : name}`}
-        aria-pressed={interactive ? chosen : undefined}
-        onClick={() =>
-          interactive ? onSelect(object.position) : onInspect(object)
-        }
+        aria-label={`${interactive && !direct ? "选择" : "查看"}${positionLabel(object.position)}${object.kind === "group" ? "卡牌组" : name}`}
+        aria-pressed={interactive && !direct ? chosen : undefined}
+        title={canDrag ? "拖动操牌；空格提起，移至目标后回车放下" : undefined}
+        {...(direct?.sourceProps({ position: object.position, kind: "card" }, canDrag) ?? {})}
+        onMouseEnter={() => !direct?.dragging && onPreview?.(object)}
+        onMouseLeave={() => onPreview?.(null)}
+        onFocusCapture={(event) => {
+          if (!direct?.dragging && !inspectorFocusRestores.has(event.target as HTMLElement))
+            onPreview?.(object);
+        }}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+            onPreview?.(null);
+        }}
+        onClick={() => {
+          if (direct?.active) { direct.drop(object.position); return; }
+          if (direct?.manual && direct.enabled) { onSelect(object.position); return; }
+          interactive && !direct ? onSelect(object.position) : onInspect(object);
+        }}
       >
         {!showBack && top?.kind === "card" ? (
           <CardFace card={top.card} compact />
         ) : (
           <CardBack label={object.kind === "group" ? "卡牌组" : "隐藏"} />
         )}
+        {object.kind === "group" && object.stack.length > 1 && <span className="group-stack-count" aria-label={`叠牌 ${object.stack.length}`}>叠牌 {object.stack.length}</span>}
       </button>
-      <div className="object-card-title" title={name}>
+      {object.kind !== "group" && <div className="object-card-title" title={name}>
         {name}
-      </div>
+      </div>}
       {object.kind === "group" && (
         <>
+          <div className="group-info" role="group" aria-label={`${name}信息`}>
+          <div className="group-required">
+          <div className="object-card-title" title={name}>{name}</div>
           <div className="group-badges">
             {top?.kind === "card" && top.card.kind === "pokemon" && (
               <span>HP {top.card.hp}</span>
             )}
-            <b
+            {!ghost && <b
               className={`damage ${object.state.damageCounters ? "has-damage" : ""}`}
             >
               伤害 {object.state.damageCounters * 10}
-            </b>
-            {object.stack.length > 1 && <span>叠牌 {object.stack.length}</span>}
+            </b>}
           </div>
+          </div>
+          {(object.state.specialConditions.length > 0 || object.attached.length > 0) && <div className="group-extra" role="group" aria-label={`${name}状态与附着`} tabIndex={0} title="状态与附着，可滚动查看" onKeyDown={scrollGroupExtra}>
           {!!object.state.specialConditions.length && (
             <div className="conditions">
               {object.state.specialConditions.map((condition) => (
@@ -256,9 +362,12 @@ export function ObjectCard({
             </div>
           )}
           <AttachedSummary object={object} />
+          </div>}
+          </div>
+          {direct?.manual && direct.onState && chosen && <ManualStateTools object={object} busy={!direct.enabled} onChange={(field) => direct.onState?.(object.position, field)} />}
         </>
       )}
-      {interactive && object.kind !== "hidden" && (
+      {interactive && !direct && object.kind !== "hidden" && (
         <button className="inspect" onClick={() => onInspect(object)}>
           {object.kind === "group" ? "展开卡牌组" : "查看牌面"}
         </button>
@@ -285,6 +394,7 @@ export function Zone({
   highlighted?: Position[];
   interactive?: boolean;
 }) {
+  const direct = useDirectTable();
   const pile = ["deck", "discard", "lost"].includes(zone.kind);
   const [expanded, setExpanded] = useState(false);
   const popover = useRef<HTMLDivElement>(null);
@@ -320,9 +430,10 @@ export function Zone({
         key={index}
         className={`empty-slot ${highlighted.some((position) => position.zoneId === zone.id && position.index === index) ? "is-located" : ""}`}
         data-position-key={positionKey({ zoneId: zone.id, index })}
+        {...(direct?.targetProps({ zoneId: zone.id, index }) ?? {})}
         aria-label={`${zoneNames[zone.kind]}第${index + 1}位${interactive ? "作为目标" : "空位"}`}
-        onClick={() => interactive && onDestination(zone.id, index)}
-        disabled={!interactive}
+        onClick={() => direct?.active ? direct.drop({ zoneId: zone.id, index }) : !direct && interactive && onDestination(zone.id, index)}
+        disabled={direct ? !direct.enabled : !interactive}
       >
         <span>{interactive ? "+" : "空"}</span>
         <small>{index + 1}</small>
@@ -334,6 +445,8 @@ export function Zone({
       className={`zone zone-${zone.kind} ${pile ? "pile" : ""} ${highlighted.some((position) => position.zoneId === zone.id) ? "is-located" : ""}`}
       aria-label={`${zone.playerId ?? ""}${zoneNames[zone.kind]}`}
       data-zone-id={zone.id}
+      style={zone.kind === "bench" ? { "--bench-slots": Math.max(1, zone.items.length) } as CSSProperties : undefined}
+      {...(direct?.targetProps({ zoneId: zone.id, index: zone.layout === "slots" ? Math.max(0, zone.items.findIndex((item) => !item)) : zone.items.length }) ?? {})}
     >
       <header>
         <h3>{zoneNames[zone.kind]}</h3>
@@ -365,7 +478,9 @@ export function Zone({
               zoneId: zone.id,
               index: zone.items.length,
             })}
-            onClick={() => onDestination(zone.id, zone.items.length)}
+            {...(direct?.targetProps({ zoneId: zone.id, index: zone.items.length }) ?? {})}
+            onClick={() => direct?.active ? direct.drop({ zoneId: zone.id, index: zone.items.length }) : !direct && onDestination(zone.id, zone.items.length)}
+            disabled={direct ? !direct.enabled : false}
             aria-label={`${zoneNames[zone.kind]}末尾作为目标`}
           >
             <span>+</span>
