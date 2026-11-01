@@ -11,21 +11,21 @@ import { seedHumanScenario } from '../../../scripts/human-action-fixtures.ts';
 import { decodeHumanInput, decodeHumanReview } from './human-context-fixture.ts';
 
 const effect = '查看自己的牌库，从中选择1张卡牌加入手牌，然后重洗牌库。';
-const pokemon: CardData = { kind: 'pokemon', name: '合成执行测试宝可梦', hp: 80, types: ['草'], stage: '基础', abilities: [{ name: '合成检索', text: effect }], attacks: [{ name: '合成撞击', energyCost: [], damageText: '10', text: '' }], weaknesses: [], resistances: [], retreatCost: 0 };
+const pokemon: Extract<CardData, { kind: 'pokemon' }> = { kind: 'pokemon', name: '合成执行测试宝可梦', hp: 80, types: ['草'], stage: '基础', abilities: [{ name: '合成检索', text: effect }], attacks: [{ name: '合成撞击', energyCost: [], damageText: '10', text: '' }], weaknesses: [], resistances: [], retreatCost: 0 };
 const choiceEffect = '最多抽3张牌。';
 function call(name: string, args: unknown): ModelReply {
   const callId = randomUUID(), argumentsJson = JSON.stringify(args);
   return { id: randomUUID(), model: 'test', output: [{ type: 'function_call', call_id: callId, name, arguments: argumentsJson }], calls: [{ callId, name, arguments: argumentsJson }], usage: null };
 }
 const atomic = (command: GameCommand, choiceIds: string[] = [], effectText?: string, effectStep?: string) => call('execute_atomic', { command, choiceIds, ...(effectText ? { effectText } : {}), ...(effectStep ? { effectStep } : {}) });
-const sequence = (steps: { command: GameCommand; choiceIds: string[]; effectText?: string }[], finish = true) => call('execute_sequence', { steps, finish });
+const sequence = (steps: { command: GameCommand; choiceIds: string[]; effectText?: string; mechanical?: unknown }[], finish = true) => call('execute_sequence', { steps, finish });
 const cardIds = (fixture: Awaited<ReturnType<typeof setup>>, zoneId: string) => fixture.service.match(fixture.id).state.zones[zoneId]!.contents.items.map(ref => ref ? `${ref.kind}:${ref.id}` : '');
 async function confirm(fixture: Awaited<ReturnType<typeof setup>>, actionId: string, selected: string[] = [], number?: number) {
   const waiting = await fixture.settle('awaiting_choice'), choiceId = waiting.choice!.id;
   const response = await fixture.app.inject({ method: 'POST', url: `/api/matches/${fixture.id}/actions/${actionId}/choice`, payload: { playerId: 'A', requestId: randomUUID(), revision: waiting.revision, choiceId, selected, ...(number === undefined ? {} : { number }) } });
   assert.equal(response.statusCode, 202, response.body); return choiceId;
 }
-async function setup(t: TestContext, generate: (request: ModelRequest) => Promise<ModelReply> | ModelReply, card = pokemon) {
+async function setup(t: TestContext, generate: (request: ModelRequest) => Promise<ModelReply> | ModelReply, card: CardData = pokemon, extraCards: CardData[] = []) {
   const directory = await mkdtemp(join(tmpdir(), 'ptcg-human-actions-'));
   const model: ModelGateway = { generate: async request => {
     const context = JSON.parse(decodeHumanInput(request.input).filter(item => item.role === 'user').at(-1)!.content as string);
@@ -35,7 +35,7 @@ async function setup(t: TestContext, generate: (request: ModelRequest) => Promis
   } };
   const app = await buildApp({ dataDir: join(directory, 'data'), systemDir: join(directory, 'system'), modelFactory: () => model });
   t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
-  const created = await app.inject({ method: 'POST', url: '/api/matches', payload: { mode: 'local', players: [{ name: '甲', kind: 'human', deck: { cards: [{ card, count: 60 }] } }, { name: '乙', kind: 'human', deck: { cards: [{ card, count: 60 }] } }] } });
+  const created = await app.inject({ method: 'POST', url: '/api/matches', payload: { mode: 'local', players: [{ name: '甲', kind: 'human', deck: { cards: [{ card, count: 60 - extraCards.length }, ...extraCards.map(card => ({ card, count: 1 }))] } }, { name: '乙', kind: 'human', deck: { cards: [{ card, count: 60 - extraCards.length }, ...extraCards.map(card => ({ card, count: 1 }))] } }] } });
   assert.equal(created.statusCode, 200, created.body);
   const id = created.json<CreateMatchResponse>().match.id;
   const view = async (playerId: PlayerId = 'A') => (await app.inject(`/api/matches/${id}?viewer=${playerId}`)).json<MatchView>();
@@ -52,7 +52,7 @@ async function setup(t: TestContext, generate: (request: ModelRequest) => Promis
         return;
       }
       if (choice.kind === 'choose_first') await command(choice.playerId, { kind: 'choose_first', firstPlayer: 'A' });
-      else if (choice.kind === 'initial_placement') await command(choice.playerId, { kind: 'initial_placement', active: { zoneId: `${choice.playerId}:hand`, index: 0 }, bench: [] });
+      else if (choice.kind === 'initial_placement') { const hand = (await view(choice.playerId)).zones.find(zone => zone.id === `${choice.playerId}:hand`)!; const index = hand.items.findIndex(item => item?.kind === 'card' && item.card.kind === 'pokemon' && item.card.stage === '基础'); await command(choice.playerId, { kind: 'initial_placement', active: { zoneId: `${choice.playerId}:hand`, index }, bench: [] }); }
       else throw new Error(`unexpected setup ${choice.kind}`);
     }
     throw new Error('setup did not finish');
@@ -537,16 +537,16 @@ test('local双人各自保留行动状态：A交权等待B，B执行受托并归
 });
 
 test('特性结算整组弃置后可交权让对手自己选择奖赏，归还后继续原行动且不重复拿取', async t => {
-  const selfKnockout = '合成效果：令这只宝可梦昏厥。';
+  const selfKnockout = '令这只宝可梦昏厥。';
   const card: CardData = { ...pokemon, abilities: [{ name: '合成自我昏厥', text: selfKnockout }] };
   let aCalls = 0, bCalls = 0, prizeChoice = '';
   const fixture = await setup(t, request => {
     const context = JSON.parse(decodeHumanInput(request.input).find(message => message.role === 'user' && JSON.parse(message.content as string).intent)!.content as string);
     if (context.intent.kind === 'ability') {
       aCalls++;
-      if (aCalls === 1) return atomic({ kind: 'set_state', target: { kind: 'group', position: { zoneId: 'A:bench', index: 0 } }, field: { key: 'damageCounters', value: 8 } }, [], selfKnockout);
+      if (aCalls === 1) return atomic({ kind: 'declare', text: '使用合成自我昏厥' });
       if (aCalls === 2) return sequence([
-        { command: { kind: 'move', source: { container: { kind: 'group', position: { zoneId: 'A:bench', index: 0 }, relation: 'stack' }, range: { mode: 'all' } }, destination: { container: { kind: 'zone', zoneId: 'A:discard' }, index: 'end' } }, choiceIds: [] },
+        { command: { kind: 'move', source: { container: { kind: 'group', position: { zoneId: 'A:bench', index: 0 }, relation: 'stack' }, range: { mode: 'all' } }, destination: { container: { kind: 'zone', zoneId: 'A:discard' }, index: 'end' } }, choiceIds: [], effectText: selfKnockout },
         { command: { kind: 'remove_group', position: { zoneId: 'A:bench', index: 0 } }, choiceIds: [] },
       ], false);
       if (aCalls === 3) return call('fail_action', { reason: '此前宿主拒绝了奖赏交权，等待修正' });
@@ -1150,7 +1150,7 @@ test('已指定备战目标的机械交换一次完成，不增加固定对象�
 
 test('双方按剩余奖赏数的固定盲抽不要求选择对手隐藏牌', async t => {
   const effect = '双方各自从自己的牌库抽出与自己剩余奖赏卡张数相同数量的卡牌。'; let calls = 0;
-  const fixture = await setup(t, () => { calls++; return call('execute_sequence', { finish: true, steps: (['A', 'B'] as const).map(playerId => ({ command: { kind: 'move', source: { container: { kind: 'zone', zoneId: `${playerId}:deck` }, range: { mode: 'range', start: 0, count: 6 } }, destination: { container: { kind: 'zone', zoneId: `${playerId}:hand` }, index: 'end' } }, choiceIds: [], effectText: effect, effectStep: effect, mechanical: { kind: 'draw', basis: 'prizes' } })) }); }, { ...pokemon, abilities: [{ name: '固定补给', text: effect }] });
+  const fixture = await setup(t, () => { calls++; return call('execute_sequence', { finish: true, steps: (['A', 'B'] as const).map(playerId => ({ command: { kind: 'move', source: { container: { kind: 'zone', zoneId: `${playerId}:deck` }, range: { mode: 'range', start: 0, count: 6 } }, destination: { container: { kind: 'zone', zoneId: `${playerId}:hand` }, index: 'end' } }, choiceIds: [], effectText: effect, effectStep: effect, mechanical: { kind: 'draw', basis: 'prizes', effectStep: effect } })) }); }, { ...pokemon, abilities: [{ name: '固定补给', text: effect }] });
   await fixture.ready(); const before = cardIds(fixture, 'B:hand').length;
   await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
   const done = await fixture.settle(); assert.equal(done.status, 'completed', done.error); assert.equal(calls, 1); assert.equal(cardIds(fixture, 'B:hand').length, before + 6);
@@ -1184,14 +1184,13 @@ test('已选top2一张后唯一补集归底按候选身份授权，不受原位�
 
 test('昏厥整组清理先弃叠牌再弃附着卡仍有机械授权', async t => {
   let calls = 0;
-  const fixture = await setup(t, () => { calls++; return sequence((['stack', 'attached'] as const).map(relation => ({ command: { kind: 'move', source: { container: { kind: 'group', position: { zoneId: 'A:active', index: 0 }, relation }, range: { mode: 'all' } }, destination: { container: { kind: 'zone', zoneId: 'A:discard' }, index: 'end' } }, choiceIds: [] }))); });
+  const fixture = await setup(t, () => { calls++; return call('execute_sequence', { finish: true, steps: [ ...(['stack', 'attached'] as const).map(relation => ({ command: { kind: 'move', source: { container: { kind: 'group', position: { zoneId: 'A:active', index: 0 }, relation }, range: { mode: 'all' } }, destination: { container: { kind: 'zone', zoneId: 'A:discard' }, index: 'end' } }, choiceIds: [] })), { command: { kind: 'remove_group', position: { zoneId: 'A:active', index: 0 } }, choiceIds: [] } ] }); });
   await fixture.ready();
   await fixture.command('A', { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:hand' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:active', index: 0 }, relation: 'attached' }, index: 'end' } });
   await fixture.command('A', { kind: 'set_state', target: { kind: 'group', position: { zoneId: 'A:active', index: 0 } }, field: { key: 'damageCounters', value: 8 } });
   await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
   const done = await fixture.settle(); assert.equal(done.status, 'completed', done.error); assert.equal(calls, 1);
-  const ref = fixture.service.match(fixture.id).state.zones['A:active']!.contents.items[0]!;
-  assert.deepEqual(fixture.service.match(fixture.id).state.groups[ref.id]!.attached, []);
+  assert.equal(fixture.service.match(fixture.id).state.zones['A:active']!.contents.items[0], null);
 });
 
 test('显式手动修正仍保留结算义务，调整归属原行动并禁止直接推进回合', async t => {
@@ -1241,7 +1240,7 @@ test('失败后的有效副作用跨重启保持锁；整段回滚后可以改�
 test('mechanical声明不能把可选抽牌或错误固定数量伪装为确定流程', async t => {
   for (const [effect, count] of [['从自己的牌库抽最多3张牌。', 2], ['从自己的牌库抽2张牌。', 3]] as const) await t.test(effect, async sub => {
     let calls = 0;
-    const fixture = await setup(sub, () => ++calls === 1 ? call('execute_atomic', { command: { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'range', start: 0, count } }, destination: { container: { kind: 'zone', zoneId: 'A:hand' }, index: 'end' } }, choiceIds: [], effectText: effect, effectStep: effect, mechanical: { kind: 'draw', basis: 'fixed' } }) : call('fail_action', { reason: '已验证拒绝' }), { ...pokemon, abilities: [{ name: '合成补给', text: effect }] });
+    const fixture = await setup(sub, () => ++calls === 1 ? call('execute_atomic', { command: { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'range', start: 0, count } }, destination: { container: { kind: 'zone', zoneId: 'A:hand' }, index: 'end' } }, choiceIds: [], effectText: effect, effectStep: effect, mechanical: { kind: 'draw', basis: 'fixed', effectStep: effect } }) : call('fail_action', { reason: '已验证拒绝' }), { ...pokemon, abilities: [{ name: '合成补给', text: effect }] });
     await fixture.ready(); const before = (await fixture.view()).revision;
     await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
     assert.equal((await fixture.settle('failed')).eventIds.length, 0); assert.equal((await fixture.view()).revision, before);
@@ -1252,7 +1251,7 @@ test('固定盲抽分句不能重复消费，同一批次第二次抽牌被拒�
   const effect = '从自己的牌库抽2张牌。'; let calls = 0;
   const fixture = await setup(t, () => {
     if (++calls > 1) return call('fail_action', { reason: '重复已拦截' });
-    const step = { command: { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'range', start: 0, count: 2 } }, destination: { container: { kind: 'zone', zoneId: 'A:hand' }, index: 'end' } }, choiceIds: [], effectText: effect, effectStep: effect, mechanical: { kind: 'draw', basis: 'fixed' } };
+    const step = { command: { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'range', start: 0, count: 2 } }, destination: { container: { kind: 'zone', zoneId: 'A:hand' }, index: 'end' } }, choiceIds: [], effectText: effect, mechanical: { kind: 'draw', basis: 'fixed', effectStep: effect } };
     return call('execute_sequence', { steps: [step, step], finish: true });
   }, { ...pokemon, abilities: [{ name: '合成补给', text: effect }] });
   await fixture.ready(); const before = cardIds(fixture, 'A:hand').length;
@@ -1284,5 +1283,246 @@ test('补集授权拒绝旧索引指向的新卡、未确认的多张顺序和�
     assert.equal(failed.eventIds.length, mode === 'shuffled' ? 3 : 2, '只有查看、已选卡入手与显式洗牌可提交，补集越权不得产生移动');
     const saved = JSON.parse(await readFile(join(fixture.service.match(fixture.id).directory, 'human-actions', `${action.id}.json`), 'utf8'));
     assert.ok(saved.messages.some((item: { output?: string }) => item.output?.includes('机械补集仅限')));
+  });
+});
+
+test('mechanical draw在scope内必须提供完整分句，外层effectStep不能代替schema约束', async t => {
+  const effect = '从自己的牌库抽2张牌。'; let calls = 0;
+  const fixture = await setup(t, () => ++calls === 1 ? call('execute_atomic', { command: { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'range', start: 0, count: 2 } }, destination: { container: { kind: 'zone', zoneId: 'A:hand' }, index: 'end' } }, choiceIds: [], effectText: effect, effectStep: effect, mechanical: { kind: 'draw', basis: 'fixed' } }) : call('fail_action', { reason: 'schema省略已验证' }), { ...pokemon, abilities: [{ name: '合成固定抽牌', text: effect }] });
+  await fixture.ready(); const before = cardIds(fixture, 'A:hand').length;
+  await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
+  const failed = await fixture.settle('failed'); assert.equal(failed.eventIds.length, 0); assert.equal(cardIds(fixture, 'A:hand').length, before);
+});
+
+test('唯一备战空槽的已选基础宝可梦机械放置不增加槽位抉择', async t => {
+  for (const resolution of [false, true]) await t.test(resolution ? '按备战区域声明结果' : '未预先引用新组', async sub => {
+    const effect = '选择自己牌库中的1只基础宝可梦，放于备战区，然后重洗牌库。'; let calls = 0, choiceId = '';
+    const fixture = await setup(sub, () => {
+      calls++;
+      if (calls === 1) return atomic({ kind: 'look', selection: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'all' } } }, [], effect);
+      if (calls === 2) return call('request_choice', { kind: 'select', title: '选择放到备战区的基础宝可梦', options: [{ id: 'selected', position: { zoneId: 'A:deck', index: 0 } }], minimum: 1, maximum: 1, ...(resolution ? { resolution: { kind: 'move', container: { kind: 'zone', zoneId: 'A:bench' } } } : {}) });
+      if (calls === 3) { const mechanical = { kind: 'place', choiceId, target: { zoneId: 'A:bench', index: 4 } }; return call('execute_sequence', { finish: true, steps: [
+        { command: { kind: 'create_group', destination: { container: { kind: 'zone', zoneId: 'A:bench' }, index: 4 } }, choiceIds: [choiceId], effectText: effect, mechanical },
+        { command: { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:bench', index: 4 }, relation: 'stack' }, index: 0 } }, choiceIds: [choiceId], effectText: effect, mechanical },
+        { command: { kind: 'shuffle', selection: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'all' } } }, choiceIds: [], effectText: effect },
+      ] }); }
+      return call('fail_action', { reason: '本应无需额外模型调用' });
+    }, { ...pokemon, abilities: [{ name: '基础放置', text: effect }] });
+    await fixture.ready();
+    for (const index of [0, 1, 2, 3]) { await fixture.command('A', { kind: 'create_group', destination: { container: { kind: 'zone', zoneId: 'A:bench' }, index } }); await fixture.command('A', { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:hand' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:bench', index }, relation: 'stack' }, index: 0 } }); }
+    const selected = cardIds(fixture, 'A:deck')[0];
+    const { action } = await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
+    choiceId = (await fixture.settle('awaiting_choice')).choice!.id; await confirm(fixture, action.id, ['selected']);
+    const done = await fixture.settle(); assert.equal(done.status, 'completed', done.error); assert.equal(calls, 3);
+    const match = fixture.service.match(fixture.id), placed = match.state.zones['A:bench']!.contents.items[4]!; assert.equal(`card:${match.state.groups[placed.id]!.stack[0]}`, selected);
+  });
+});
+
+test('跨交权的终端提交反馈丢失时取消、重试和重启均收敛已完成事实', async t => {
+  for (const kind of ['end_turn', 'attack', 'resolve_handoff'] as const) for (const control of ['cancel', 'retry', 'recover'] as const) await t.test(`${kind}/${control}`, async sub => {
+    let calls = 0;
+    const fixture = await setup(sub, () => {
+      calls++;
+      if (kind === 'resolve_handoff') return sequence([
+        { command: { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:bench' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'zone', zoneId: 'A:active' }, index: 0 } }, choiceIds: [] },
+        { command: { kind: 'handoff', to: 'B', returning: true, reason: '已完成人选替补' }, choiceIds: [] },
+      ]);
+      return sequence([
+        ...(kind === 'attack' ? [{ command: { kind: 'declare' as const, text: `使用招式：${pokemon.attacks[0]!.name}` }, choiceIds: [] }] : []),
+        { command: { kind: 'set_turn', phase: 'check', playerId: null }, choiceIds: [] },
+        { command: { kind: 'set_turn', phase: 'turn', playerId: 'B' }, choiceIds: [] },
+      ]);
+    });
+    if (kind === 'resolve_handoff') await prepareHandoff(fixture); else await fixture.ready();
+    const match = fixture.service.match(fixture.id), original = match.command.bind(match); let lost = false;
+    match.command = async (...args) => {
+      const result = await original(...args), command = args[1].command;
+      if (!lost && args[2] && (command.kind === 'handoff' && command.returning || command.kind === 'set_turn' && command.phase === 'turn' && command.playerId === 'B')) { lost = true; throw new Error('终端提交成功后反馈丢失'); }
+      return result;
+    };
+    const intent: HumanActionIntent = kind === 'end_turn' ? { kind } : kind === 'attack' ? { kind, source: { zoneId: 'A:active', index: 0 }, attackIndex: 0, target: { zoneId: 'B:active', index: 0 } } : { kind, source: { zoneId: 'A:bench', index: 0 }, target: { zoneId: 'A:active', index: 0 } };
+    const { action } = await fixture.start(intent); const failed = await fixture.settle('failed'); assert.equal(failed.requiresResolution, true); assert.equal(match.state.flow.operator, 'B');
+    const revision = match.state.revision, count = match.records.length;
+    let completed: HumanActionView;
+    if (control === 'recover') {
+      await fixture.service.humanController(match, 'A').close(); match.unlockHumanAction('A', action.id);
+      const { HumanActionController } = await import('../src/human-actions.ts');
+      const recovered = new HumanActionController({ match, playerId: 'A', modelFactory: () => ({ generate: async () => { throw new Error('终端事实收敛不能重新调用模型'); } }), prompts: () => fixture.service.prompts(), wake: () => { throw new Error('恢复历史不能激活旧局'); } });
+      await recovered.recover(); completed = recovered.view('A')!; await recovered.close();
+    } else completed = await fixture.service.humanController(match, 'A').control(action.id, { playerId: 'A', action: control });
+    assert.equal(completed.status, 'completed'); assert.equal(completed.requiresResolution, false); assert.equal(match.humanActionLocks.get('A'), undefined);
+    assert.equal(match.state.revision, revision); assert.equal(match.records.length, count); assert.equal(calls, 1);
+  });
+});
+
+test('机械放置不能替玩家决定多个空槽或换成未选卡牌', async t => {
+  for (const mode of ['multiple_slots', 'wrong_card'] as const) await t.test(mode, async sub => {
+    const effect = '选择自己牌库中的1只基础宝可梦，放到自己的备战区。'; let calls = 0, choiceId = '';
+    const fixture = await setup(sub, () => {
+      calls++;
+      if (calls === 1) return atomic({ kind: 'look', selection: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'all' } } }, [], effect);
+      if (calls === 2) return call('request_choice', { kind: 'select', title: '选择基础宝可梦', options: [{ id: 'selected', position: { zoneId: 'A:deck', index: 0 } }], minimum: 1, maximum: 1 });
+      if (calls === 3) { const mechanical = { kind: 'place', choiceId, target: { zoneId: 'A:bench', index: 4 } }; return call('execute_sequence', { finish: true, steps: [
+        { command: { kind: 'create_group', destination: { container: { kind: 'zone', zoneId: 'A:bench' }, index: 4 } }, choiceIds: [choiceId], effectText: effect, mechanical },
+        { command: { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'indices', indices: [1] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:bench', index: 4 }, relation: 'stack' }, index: 0 } }, choiceIds: [choiceId], effectText: effect, mechanical },
+      ] }); }
+      return call('fail_action', { reason: '非法放置已拦截' });
+    }, { ...pokemon, abilities: [{ name: '基础放置', text: effect }] });
+    await fixture.ready();
+    if (mode === 'wrong_card') for (const index of [0, 1, 2, 3]) { await fixture.command('A', { kind: 'create_group', destination: { container: { kind: 'zone', zoneId: 'A:bench' }, index } }); await fixture.command('A', { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:hand' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:bench', index }, relation: 'stack' }, index: 0 } }); }
+    const original = cardIds(fixture, 'A:deck');
+    const { action } = await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
+    choiceId = (await fixture.settle('awaiting_choice')).choice!.id; await confirm(fixture, action.id, ['selected']);
+    const failed = await fixture.settle('failed'); assert.equal(failed.eventIds.length, mode === 'wrong_card' ? 2 : 1);
+    assert.deepEqual(cardIds(fixture, 'A:deck'), original);
+    const ref = fixture.service.match(fixture.id).state.zones['A:bench']!.contents.items[4];
+    assert.equal(Boolean(ref), mode === 'wrong_card'); if (ref) assert.deepEqual(fixture.service.match(fixture.id).state.groups[ref.id]!.stack, []);
+  });
+});
+
+test('唯一槽创建提交反馈丢失并重启后沿原选择完成放置，不重建组或再次选槽', async t => {
+  const effect = '选择自己牌库中的1只基础宝可梦，放到自己的备战区。'; let calls = 0, choiceId = '';
+  const fixture = await setup(t, () => {
+    calls++;
+    if (calls === 1) return atomic({ kind: 'look', selection: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'all' } } }, [], effect);
+    if (calls === 2) return call('request_choice', { kind: 'select', title: '选择基础宝可梦', options: [{ id: 'selected', position: { zoneId: 'A:deck', index: 0 } }], minimum: 1, maximum: 1 });
+    const mechanical = { kind: 'place', choiceId, target: { zoneId: 'A:bench', index: 4 } };
+    return call('execute_sequence', { finish: true, steps: [
+      { command: { kind: 'create_group', destination: { container: { kind: 'zone', zoneId: 'A:bench' }, index: 4 } }, choiceIds: [choiceId], effectText: effect, mechanical },
+      { command: { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:bench', index: 4 }, relation: 'stack' }, index: 0 } }, choiceIds: [choiceId], effectText: effect, mechanical },
+    ] });
+  }, { ...pokemon, abilities: [{ name: '基础放置', text: effect }] });
+  await fixture.ready();
+  for (const index of [0, 1, 2, 3]) { await fixture.command('A', { kind: 'create_group', destination: { container: { kind: 'zone', zoneId: 'A:bench' }, index } }); await fixture.command('A', { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:hand' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:bench', index }, relation: 'stack' }, index: 0 } }); }
+  const match = fixture.service.match(fixture.id), original = match.command.bind(match); let lost = false;
+  match.command = async (...args) => { const receipt = await original(...args); if (!lost && args[2] && args[1].command.kind === 'create_group') { lost = true; throw new Error('唯一槽创建成功后反馈丢失'); } return receipt; };
+  const selected = cardIds(fixture, 'A:deck')[0];
+  const { action } = await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
+  choiceId = (await fixture.settle('awaiting_choice')).choice!.id; await confirm(fixture, action.id, ['selected']); await fixture.settle('failed');
+  await fixture.service.humanController(match, 'A').close(); match.unlockHumanAction('A', action.id);
+  const { HumanActionController } = await import('../src/human-actions.ts');
+  const recovered = new HumanActionController({ match, playerId: 'A', modelFactory: () => ({ generate: async () => { throw new Error('不应重复请求模型'); } }), prompts: () => fixture.service.prompts(), wake: () => {} });
+  await recovered.recover(); await recovered.control(action.id, { playerId: 'A', action: 'retry' });
+  for (let index = 0; index < 200 && recovered.view('A')!.status === 'running'; index++) await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(recovered.view('A')!.status, 'completed'); assert.equal(calls, 3);
+  const ref = match.state.zones['A:bench']!.contents.items[4]!; assert.deepEqual(match.state.groups[ref.id]!.stack.map(id => `card:${id}`), [selected]);
+  assert.equal(match.records.filter(record => record.event?.A.action?.id === action.id && record.request?.command.kind === 'create_group').length, 1);
+  await recovered.close();
+});
+
+
+test('已选部分进化叠牌的真实退化丢弃不要求昏厥证明，整叠仍受保护', async t => {
+  const effect = '将这只宝可梦最上方的1张进化卡丢弃，退化为进化前的宝可梦。'; let calls = 0, choiceId = '';
+  const evolved: CardData = { ...pokemon, name: '合成退化测试进化卡', stage: '1阶进化', evolvesFrom: pokemon.name, abilities: [{ name: '合成退化', text: effect }] };
+  const fixture = await setup(t, () => {
+    if (++calls === 1) return call('request_choice', { kind: 'select', title: '选择退化的进化卡', options: [{ id: 'top', position: { zoneId: 'A:active', index: 0, member: { relation: 'stack', index: 1 } } }], minimum: 1, maximum: 1, resolution: { kind: 'move', container: { kind: 'zone', zoneId: 'A:discard' } } });
+    if (calls === 2) return atomic({ kind: 'move', source: { container: { kind: 'group', position: { zoneId: 'A:active', index: 0 }, relation: 'stack' }, range: { mode: 'indices', indices: [1] } }, destination: { container: { kind: 'zone', zoneId: 'A:discard' }, index: 'end' } }, [choiceId], effect);
+    return call('finish_action', {});
+  }, pokemon, [evolved]);
+  await fixture.ready(); const match = fixture.service.match(fixture.id);
+  const source = Object.values(match.state.zones).filter(zone => zone.playerId === 'A').flatMap(zone => zone.contents.items.flatMap((ref, index) => ref?.kind === 'card' && match.state.definitions[match.state.cards[ref.id]!.definitionId]?.name === evolved.name ? [{ zoneId: zone.id, index }] : []))[0]!;
+  await fixture.command('A', { kind: 'move', source: { container: { kind: 'zone', zoneId: source.zoneId }, range: { mode: 'indices', indices: [source.index] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:active', index: 0 }, relation: 'stack' }, index: 'end' } });
+  const ref = match.state.zones['A:active']!.contents.items[0]!, basic = match.state.groups[ref.id]!.stack[0];
+  const { action } = await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
+  choiceId = (await fixture.settle('awaiting_choice')).choice!.id; await confirm(fixture, action.id, ['top']);
+  const done = await fixture.settle(); assert.equal(done.status, 'completed', done.error); assert.deepEqual(match.state.groups[ref.id]!.stack, [basic]);
+});
+
+test('整组清理不能只弃叠牌或保留场上空组就finish，补齐附着和移除后才完成', async t => {
+  let calls = 0;
+  const fixture = await setup(t, () => {
+    calls++;
+    if (calls === 1 || calls === 3) return atomic({ kind: 'move', source: { container: { kind: 'group', position: { zoneId: 'A:active', index: 0 }, relation: calls === 1 ? 'stack' : 'attached' }, range: { mode: 'all' } }, destination: { container: { kind: 'zone', zoneId: 'A:discard' }, index: 'end' } });
+    if (calls === 5) return atomic({ kind: 'remove_group', position: { zoneId: 'A:active', index: 0 } });
+    return call('finish_action', {});
+  });
+  await fixture.ready();
+  await fixture.command('A', { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:hand' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:active', index: 0 }, relation: 'attached' }, index: 'end' } });
+  await fixture.command('A', { kind: 'set_state', target: { kind: 'group', position: { zoneId: 'A:active', index: 0 } }, field: { key: 'damageCounters', value: 8 } });
+  const { action } = await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
+  const done = await fixture.settle('completed'); assert.equal(calls, 6); assert.equal(done.eventIds.length, 3);
+  const saved = JSON.parse(await readFile(join(fixture.service.match(fixture.id).directory, 'human-actions', `${action.id}.json`), 'utf8'));
+  assert.equal(saved.messages.filter((item: { output?: string }) => item.output?.includes('场上空卡牌组尚未')).length, 2);
+  assert.equal(fixture.service.match(fixture.id).state.zones['A:active']!.contents.items[0], null);
+});
+
+test('本次明确选中的自身昏厥特性直接清理，不伪造伤害也不增加HP核验请求', async t => {
+  const effect = '自己的回合时可以使用1次。如果使用了，则令这只宝可梦【昏厥】。'; let calls = 0;
+  const fixture = await setup(t, () => { calls++; return call('execute_sequence', { finish: true, steps: [
+    ...(['stack', 'attached'] as const).map(relation => ({ command: { kind: 'move', source: { container: { kind: 'group', position: { zoneId: 'A:active', index: 0 }, relation }, range: { mode: 'all' } }, destination: { container: { kind: 'zone', zoneId: 'A:discard' }, index: 'end' } }, choiceIds: [] })),
+    { command: { kind: 'remove_group', position: { zoneId: 'A:active', index: 0 } }, choiceIds: [] },
+  ] }); }, { ...pokemon, abilities: [{ name: '合成自身昏厥', text: effect }] });
+  await fixture.ready(); await fixture.command('A', { kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:hand' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:active', index: 0 }, relation: 'attached' }, index: 'end' } });
+  const { action } = await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
+  const done = await fixture.settle('completed'); assert.equal(calls, 1); assert.equal(done.eventIds.length, 3);
+  assert.equal(fixture.service.match(fixture.id).records.filter(record => record.event?.A.action?.id === action.id && record.request?.command.kind === 'set_state').length, 0);
+});
+
+test('招式固定主伤害不因真实追加效果含任意分配而变成人类数量选择', async t => {
+  const effect = '将6个伤害指示物，以任意方式放置于对手的备战宝可梦身上。'; let calls = 0;
+  const fixture = await setup(t, () => ++calls === 1 ? atomic({ kind: 'set_state', target: { kind: 'group', position: { zoneId: 'B:active', index: 0 } }, field: { key: 'damageCounters', value: 2 } }, [], effect) : call('fail_action', { reason: '固定主伤害核验终点' }), { ...pokemon, attacks: [{ name: '合成固定主伤害', energyCost: [], damageText: '20', text: effect }] });
+  await fixture.ready(); await fixture.start({ kind: 'attack', source: { zoneId: 'A:active', index: 0 }, attackIndex: 0, target: { zoneId: 'B:active', index: 0 } });
+  const result = await fixture.settle('failed'); assert.equal(result.eventIds.length, 1);
+  const match = fixture.service.match(fixture.id), ref = match.state.zones['B:active']!.contents.items[0]!; assert.equal(match.state.groups[ref.id]!.state.damageCounters, 2);
+});
+
+test('固定主伤害豁免不覆盖备战、不同数量、可变伤害或重复主伤害', async t => {
+  for (const variant of ['bench', 'different', 'plus', 'multiply', 'repeat'] as const) await t.test(variant, async sub => {
+    const effect = '将6个伤害指示物，以任意方式放置于对手的备战宝可梦身上。'; let calls = 0;
+    const target = { zoneId: variant === 'bench' ? 'B:bench' : 'B:active', index: 0 };
+    const fixture = await setup(sub, () => {
+      calls++;
+      if (variant === 'repeat' && calls === 1) return atomic({ kind: 'set_state', target: { kind: 'group', position: target }, field: { key: 'damageCounters', value: 2 } });
+      if (calls === (variant === 'repeat' ? 2 : 1)) return atomic({ kind: 'set_state', target: { kind: 'group', position: target }, field: { key: 'damageCounters', value: variant === 'different' ? 3 : variant === 'repeat' ? 4 : 2 } }, [], effect);
+      return call('fail_action', { reason: '越界豁免已验证' });
+    }, { ...pokemon, attacks: [{ name: '合成主伤害边界', energyCost: [], damageText: variant === 'plus' ? '20+' : variant === 'multiply' ? '20×' : '20', text: effect }] });
+    await fixture.ready();
+    if (variant === 'bench') { await fixture.command('A', { kind: 'create_group', destination: { container: { kind: 'zone', zoneId: 'B:bench' }, index: 0 } }); await fixture.command('A', { kind: 'move', source: { container: { kind: 'zone', zoneId: 'B:hand' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: target, relation: 'stack' }, index: 0 } }); }
+    await fixture.start({ kind: 'attack', source: { zoneId: 'A:active', index: 0 }, attackIndex: 0, target });
+    const result = await fixture.settle('failed'); assert.equal(result.eventIds.length, variant === 'repeat' ? 1 : 0);
+    const match = fixture.service.match(fixture.id), ref = match.state.zones[target.zoneId]!.contents.items[0]!; assert.equal(match.state.groups[ref.id]!.state.damageCounters, variant === 'repeat' ? 2 : 0);
+  });
+});
+
+test('固定主伤害完成后追加分配仍等待玩家的备战目标与数量', async t => {
+  const effect = '将6个伤害指示物，以任意方式放置于对手的备战宝可梦身上。'; let calls = 0, targetChoice = '', numberChoice = '';
+  const fixture = await setup(t, () => {
+    calls++;
+    if (calls === 1) return atomic({ kind: 'set_state', target: { kind: 'group', position: { zoneId: 'B:active', index: 0 } }, field: { key: 'damageCounters', value: 2 } }, [], effect);
+    if (calls === 2) return atomic({ kind: 'set_state', target: { kind: 'group', position: { zoneId: 'B:bench', index: 0 } }, field: { key: 'damageCounters', value: 6 } }, [], effect);
+    if (calls === 3) return call('request_choice', { kind: 'select', title: '选择追加效果的备战目标', options: [{ id: 'bench', position: { zoneId: 'B:bench', index: 0 } }], minimum: 1, maximum: 1, resolution: { kind: 'state' } });
+    if (calls === 4) return call('request_choice', { kind: 'number', title: '选择放置数量', options: [], minimum: 0, maximum: 6, quantityScopes: [{ kind: 'set_state', target: { kind: 'group', position: { zoneId: 'B:bench', index: 0 } }, field: 'damageCounters' }] });
+    if (calls === 5) return atomic({ kind: 'set_state', target: { kind: 'group', position: { zoneId: 'B:bench', index: 0 } }, field: { key: 'damageCounters', value: 6 } }, [targetChoice, numberChoice], effect);
+    return call('fail_action', { reason: '追加分配权限核验终点' });
+  }, { ...pokemon, attacks: [{ name: '合成主伤害与追加分配', energyCost: [], damageText: '20', text: effect }] });
+  await fixture.ready(); await fixture.command('A', { kind: 'create_group', destination: { container: { kind: 'zone', zoneId: 'B:bench' }, index: 0 } });
+  await fixture.command('A', { kind: 'move', source: { container: { kind: 'zone', zoneId: 'B:hand' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'B:bench', index: 0 }, relation: 'stack' }, index: 0 } });
+  const match = fixture.service.match(fixture.id), bench = match.state.zones['B:bench']!.contents.items[0]!;
+  const { action } = await fixture.start({ kind: 'attack', source: { zoneId: 'A:active', index: 0 }, attackIndex: 0, target: { zoneId: 'B:active', index: 0 } });
+  targetChoice = (await fixture.settle('awaiting_choice')).choice!.id; assert.equal(calls, 3); assert.equal(match.state.groups[bench.id]!.state.damageCounters, 0);
+  await confirm(fixture, action.id, ['bench']);
+  numberChoice = (await fixture.settle('awaiting_choice')).choice!.id; assert.equal(calls, 4); assert.equal(match.state.groups[bench.id]!.state.damageCounters, 0);
+  await confirm(fixture, action.id, [], 6);
+  const done = await fixture.settle('failed'); assert.equal(done.eventIds.length, 2); assert.equal(match.state.groups[bench.id]!.state.damageCounters, 6);
+});
+
+test('人选可读卡牌的range表示与indices权限一致，未选或失效授权不能冒充检索', async t => {
+  for (const variant of ['selected', 'no_choice_id', 'wrong_subset', 'wrong_count', 'shuffled', 'unreadable'] as const) await t.test(variant, async sub => {
+    const effect = '查看自己的牌库最上面的2张卡牌，选择其中1张加入手牌。然后重洗牌库。'; let calls = 0, choiceId = '';
+    const fixture = await setup(sub, () => {
+      calls++;
+      const choiceCall = variant === 'unreadable' ? 1 : 2;
+      if (variant !== 'unreadable' && calls === 1) return atomic({ kind: 'look', selection: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'range', start: 0, count: 2 } } }, [], effect);
+      if (calls === choiceCall) return call('request_choice', { kind: 'select', title: '选择加入手牌的卡牌', options: [0, 1].map(index => ({ id: `top${index}`, position: { zoneId: 'A:deck', index } })), minimum: 1, maximum: 1, resolution: { kind: 'move', container: { kind: 'zone', zoneId: 'A:hand' } } });
+      if (variant === 'shuffled' && calls === choiceCall + 1) return atomic({ kind: 'shuffle', selection: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'all' } } }, [], effect);
+      if (calls === choiceCall + (variant === 'shuffled' ? 2 : 1)) return atomic({ kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:deck' }, range: { mode: 'range', start: 0, count: variant === 'wrong_count' ? 2 : 1 } }, destination: { container: { kind: 'zone', zoneId: 'A:hand' }, index: 'end' } }, variant === 'no_choice_id' ? [] : [choiceId], effect);
+      return call('fail_action', { reason: 'range选择权限核验终点' });
+    }, { ...pokemon, abilities: [{ name: '合成range检索', text: effect }] });
+    await fixture.ready(); const before = cardIds(fixture, 'A:hand').length;
+    const { action } = await fixture.start({ kind: 'ability', source: { zoneId: 'A:active', index: 0 }, abilityIndex: 0 });
+    choiceId = (await fixture.settle('awaiting_choice')).choice!.id; await confirm(fixture, action.id, [variant === 'wrong_subset' ? 'top1' : 'top0']);
+    const result = await fixture.settle('failed');
+    assert.equal(cardIds(fixture, 'A:hand').length, before + (variant === 'selected' ? 1 : 0));
+    assert.equal(result.eventIds.length, variant === 'selected' || variant === 'shuffled' ? 2 : variant === 'unreadable' ? 0 : 1);
   });
 });

@@ -46,10 +46,13 @@ export function committedHumanSteps(match: Pick<MatchRuntime, 'records' | 'meta'
       || receipt?.status !== 'committed' || typeof receipt.eventId !== 'string') return;
     const commit = commits.get(receipt.eventId);
     if (!commit || receipt.revision !== commit.record.state.revision || canonical(request.command) !== canonical(commit.record.request!.command)) return;
+    const mechanical = object(request.mechanical);
+    const stepQuote = request.effectStep ?? (mechanical?.kind === 'draw' ? mechanical.effectStep : undefined);
+    if (stepQuote !== undefined && typeof stepQuote !== 'string') return;
     const metadata = {
       choiceIds: [...request.choiceIds] as string[],
       ...(typeof request.effectText === 'string' ? { effectText: request.effectText } : {}),
-      ...(typeof request.effectStep === 'string' ? { effectStep: request.effectStep } : {}),
+      ...(typeof stepQuote === 'string' ? { effectStep: stepQuote } : {}),
     };
     const binding = canonical(metadata), previous = accepted.get(receipt.eventId);
     // 同一事实的重复回执不重复消费；相互矛盾的选择绑定没有可恢复的唯一解释。

@@ -29,6 +29,8 @@ export interface PracticeScenarioOptions {
   handoff?: boolean;
   poisoned?: boolean;
   extraHand?: ('number' | 'order' | 'coins')[];
+  /** 同名战斗/备战目标的真实选择验收。 */
+  healingChoice?: boolean;
 }
 
 function seedTable(state: GameState, options: PracticeScenarioOptions) {
@@ -50,6 +52,11 @@ function seedTable(state: GameState, options: PracticeScenarioOptions) {
   pokemon('A', 'bench', 4, practiceBasic.name);
   pokemon('B', 'active', 0, practiceOther.name, 1);
   pokemon('B', 'bench', 0, practiceBasic.name);
+  if (options.healingChoice) {
+    for (const [id, card] of Object.entries(state.definitions)) if (card.name === practiceBasic.name && card.kind === 'pokemon') state.definitions[id] = { ...card, abilities: [{ name: '定向恢复', text: '自己的回合时可以使用1次。选择自己场上的1只宝可梦，移除1个伤害指示物。' }] };
+    state.groups['practice:A:active:0']!.state.damageCounters = 1;
+    state.groups['practice:A:bench:4']!.state.damageCounters = 2;
+  }
   if (options.attachedEnergy) state.groups['practice:A:active:0']!.attached.push(take('A', practiceEnergy.name).id);
   const extraCards = { number: practiceNumber, order: practiceOrder, coins: practiceCoins };
   const extras = (options.extraHand ?? []).map(kind => extraCards[kind]);

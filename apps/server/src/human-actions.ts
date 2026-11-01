@@ -42,7 +42,8 @@ const RequestChoiceSchema = object({
 });
 const MechanicalSchema = Type.Union([
   object({ kind: Type.Literal('switch'), target: PositionSchema }),
-  object({ kind: Type.Literal('draw'), basis: Type.Union([Type.Literal('fixed'), Type.Literal('prizes')]) }),
+  object({ kind: Type.Literal('draw'), basis: Type.Union([Type.Literal('fixed'), Type.Literal('prizes')]), effectStep: effectText }),
+  object({ kind: Type.Literal('place'), choiceId: text, target: PositionSchema }),
   object({ kind: Type.Literal('remainder'), choiceId: text }),
 ]);
 const ExecuteSchema = object({
@@ -60,6 +61,7 @@ const FailSchema = object({ reason: text });
 const RestoreSchema = object({ beforeEventId: text, reason: text });
 type ChoiceRequest = Static<typeof RequestChoiceSchema>;
 type ExecuteRequest = Static<typeof ExecuteSchema>;
+const effectQuote = (request: Pick<ExecuteRequest, 'effectStep' | 'mechanical'>): string | undefined => request.effectStep ?? (request.mechanical?.kind === 'draw' ? request.mechanical.effectStep : undefined);
 interface OrderDestination extends MoveDestination { groupIdentity?: string; inferred?: boolean }
 interface EffectStep { effectText: string; start: number; end: number }
 interface QuantityBinding { scope: string; step: EffectStep }
@@ -67,6 +69,7 @@ type ChoiceResolution = Static<typeof ChoiceResolutionSchema> & { groupIdentity?
 interface ChoiceUse { choiceId: string; keys: string[] }
 interface QuantityUse { choiceId: string; scope: string; count: number }
 interface AuthorizationCommit { quantities: QuantityUse[]; orders: { choiceId: string; destination: OrderDestination }[]; extraTurn?: boolean; steps?: string[]; choices?: ChoiceUse[] }
+interface PlacementBinding { choiceId: string; effectText: string; target: Position; cardId: string; groupId?: string }
 interface SwitchBinding { target: string; effectText: string; active: Position; bench: Position; activeId: string; benchId: string }
 interface AnswerRecord { requestId: string; fingerprint: string; choice: HumanActionChoice; selected: string[]; number?: number; identities: string[]; candidateIdentities?: string[]; candidateRevision?: number; consumed: string[]; invalidated?: boolean; orderDestination?: OrderDestination; quantityUses?: QuantityUse[]; quantityScopes?: string[]; quantityBindings?: QuantityBinding[]; selectionKeys?: string[]; executed?: string[]; resolution?: ChoiceResolution }
 interface PendingCommand { requestId: string; revision: number; command: GameCommand; callId: string; consumedIdentities: string[]; authorization?: AuthorizationCommit; sequenceIndex?: number }
@@ -93,6 +96,7 @@ interface ActionState {
   recovery?: RecoverySession;
   pendingRecovery?: PendingRecovery;
   mechanicalSwitches?: SwitchBinding[];
+  mechanicalPlacements?: PlacementBinding[];
   context?: HumanActionContext;
   manual?: boolean;
 }
@@ -211,6 +215,7 @@ export class HumanActionController {
     this.#state.feedback ??= clone(config.feedback);
     this.#state.configurationVersion ??= config.version;
     this.#restoreQuantityUses();
+    if (await this.#settleKnownTerminal()) { await this.#save(); return; }
     if (this.#state.view.status === 'running') {
       this.#state.view.status = 'failed'; this.#state.view.error = '服务已重启，点击重试继续当前行动';
       this.#state.interrupted = true;
@@ -243,6 +248,31 @@ export class HumanActionController {
     this.match.lockHumanAction({ id: view.id, playerId: view.playerId, label: view.label, ...(this.#state!.manual ? { mode: 'manual' as const } : {}) });
   }
   #unlock(): void { if (this.#state) this.match.unlockHumanAction(this.playerId, this.#state.view.id); }
+  #terminalFlowCommitted(): boolean {
+    const intent = this.#state!.input.intent;
+    return intent.kind === 'resolve_handoff' ? this.#returned() : ['attack', 'end_turn'].includes(intent.kind) && this.#turnEnded();
+  }
+  #settleCompletedFlow(): boolean {
+    const state = this.#state!;
+    if (state.pending || state.pendingRecovery || !this.#terminalFlowCommitted()) return false;
+    try { this.#restoreQuantityUses(); this.#validateCompletion(); } catch { return false; }
+    if (state.sequence) {
+      state.messages.push({ type: 'function_call_output', call_id: state.sequence.callId, output: JSON.stringify({ status: 'completed', executedSteps: state.sequence.next, receipts: state.sequence.receipts }) });
+      delete state.sequence;
+    }
+    state.view.status = 'completed'; delete state.view.error; delete state.view.choice; delete state.manual; delete state.interrupted;
+    return true;
+  }
+  async #settleKnownTerminal(): Promise<boolean> {
+    const state = this.#state!;
+    if (!this.#terminalFlowCommitted()) return false;
+    const pending = state.pending;
+    // 仅查询已经存在的同ID有效回执；恢复服务不能提交尚未执行的旧请求。
+    if (pending && this.match.records.some(record => record.request?.requestId === pending.requestId && record.request.revision === pending.revision && canonical(record.request.command) === canonical(pending.command) && record.receipt?.status === 'committed' && record.event && !this.match.meta.revoked[record.event.A.id])) {
+      this.#lock(); await this.#executePending();
+    }
+    return this.#settleCompletedFlow();
+  }
   #requiresResolution(): boolean {
     const state = this.#state;
     if (!state) return false;
@@ -396,6 +426,7 @@ export class HumanActionController {
           this.#lock(); await this.#executePending();
           if (state.pending) throw new ApiError('ACTION_PENDING', '原请求结果仍待确认，当前行动不能解锁', 409);
         }
+        if (this.#settleCompletedFlow()) { await this.#save(); this.options.wake(); return this.view(input.playerId)!; }
         if (state.choiceCallId) state.messages.push({ type: 'function_call_output', call_id: state.choiceCallId, output: JSON.stringify({ status: 'cancelled', reason: '人类取消本次选择，未授权任何默认选项。' }) });
         if (state.sequence) { state.messages.push({ type: 'function_call_output', call_id: state.sequence.callId, output: JSON.stringify({ status: 'cancelled', executedSteps: state.sequence.next, receipts: state.sequence.receipts }) }); delete state.sequence; }
         state.manual = input.action === 'manual';
@@ -406,6 +437,7 @@ export class HumanActionController {
       }
       if (this.#driver && !active(state.view)) await this.#driver.promise;
       if (this.#driver || state.view.status === 'awaiting_choice') throw new ApiError('ACTION_BUSY', '请先完成当前选择或等待执行结束', 409);
+      if (await this.#settleKnownTerminal()) { await this.#save(); this.options.wake(); return this.view(input.playerId)!; }
       if (this.match.state.flow.operator !== input.playerId || this.match.state.flow.phase === 'finished') throw new ApiError('NOT_OPERATOR', '当前不能继续该行动', 409);
       if (input.action === 'retry' && !['failed', 'cancelled'].includes(state.view.status)) throw new ApiError('INVALID_ACTION_CONTROL', '当前行动无需重试');
       delete state.manual;
@@ -481,7 +513,7 @@ export class HumanActionController {
     let choices: { keptChoices: string[]; invalidatedChoices: string[] } | undefined;
     if (receipt.status === 'committed') {
       if (!state.view.eventIds.includes(receipt.eventId)) state.view.eventIds.push(receipt.eventId);
-      state.failures = 0; delete state.mechanicalSwitches;
+      state.failures = 0; delete state.mechanicalSwitches; delete state.mechanicalPlacements;
       const restoredIndex = this.match.records.findIndex(record => record.event?.A.id === pending.beforeEventId);
       choices = this.#rebindChoicesAfterRestore(this.match.records[restoredIndex - 1]?.state.revision ?? -1);
       this.#restoreQuantityUses();
@@ -621,7 +653,8 @@ export class HumanActionController {
       if (command.kind === 'move' && (!resolution || resolution.kind === 'move')) {
         const destination = command.destination.container;
         const targetKey = resolution?.kind === 'move' ? resolution.container.kind === 'group' && resolution.groupIdentity ? `${resolution.groupIdentity}:${resolution.container.relation}` : this.#containerKey(resolution.container, game) : null;
-        if (targetKey && targetKey !== this.#containerKey(destination, game)) return [];
+        const placedInZone = resolution?.kind === 'move' && resolution.container.kind === 'zone' && destination.kind === 'group' && destination.relation === 'stack' && destination.position.zoneId === resolution.container.zoneId && ['bench', 'active'].includes(game.zones[destination.position.zoneId]?.kind ?? '');
+        if (targetKey && targetKey !== this.#containerKey(destination, game) && !placedInZone) return [];
         keys = resolveSelection(game, command.source).map(ref => `${ref.kind}:${ref.id}`);
         if (destination.kind === 'group') { const id = identityInState(game, destination.position); if (id) keys.push(id); }
         else if (typeof command.destination.index === 'number') keys.push(`slot:${destination.zoneId}/${command.destination.index}`);
@@ -708,7 +741,7 @@ export class HumanActionController {
   #quantity(request: ExecuteRequest, scope: string, count: number | undefined, required: boolean, authorization: AuthorizationCommit): void {
     const numbers = this.#state!.answers.filter(answer => !answer.invalidated && answer.choice.kind === 'number');
     const referenced = numbers.filter(answer => request.choiceIds.includes(answer.choice.id));
-    const step = this.#effectStep(request.effectText, request.effectStep);
+    const step = this.#effectStep(request.effectText, effectQuote(request));
     const scoped = (answer: AnswerRecord) => this.#quantityUseScope(answer, scope, step);
     const applicable = numbers.some(answer => {
       const bound = scoped(answer);
@@ -763,7 +796,7 @@ export class HumanActionController {
         if (!scope) continue;
         const count = this.#quantityCount(request.command, before);
         if (count === undefined) continue;
-        const step = this.#effectStep(request.effectText, request.effectStep);
+        const step = this.#effectStep(request.effectText, effectQuote(request));
         if (step) {
           const use = canonical({ scope, step });
           if (!state.effectStepUses?.includes(use)) (state.effectStepUses ??= []).push(use);
@@ -873,6 +906,12 @@ export class HumanActionController {
     return this.#actionRecords().some(({ command, before }) => command.kind === 'set_turn' && command.phase === 'turn' && before.flow.phase === 'check' && (command.playerId === next || state.extraTurnGranted && command.playerId === state.view.playerId));
   }
   #validateCompletion(): void {
+    const touched = new Set(this.#movements().flatMap(move => move.command.source.container.kind === 'group' ? [identityInState(move.before, move.command.source.container.position)] : []));
+    for (const zone of Object.values(this.match.state.zones).filter(zone => ['active', 'bench'].includes(zone.kind))) for (const ref of zone.contents.items) if (ref?.kind === 'group' && touched.has(`group:${ref.id}`) && !this.match.state.groups[ref.id]?.stack.length) throw new ApiError('UNFINISHED_GROUP_CLEANUP', '场上空卡牌组尚未移除或放置完成，不能只完成一部分后结束行动');
+    for (const binding of this.#state!.mechanicalPlacements ?? []) {
+      const group = binding.groupId?.startsWith('group:') ? this.match.state.groups[binding.groupId.slice(6)] : null;
+      if (!group || identity(this.match, binding.target) !== binding.groupId || canonical(group.stack.map(id => `card:${id}`)) !== canonical([binding.cardId])) throw new ApiError('UNFINISHED_MECHANICAL_PLACEMENT', '已选基础宝可梦尚未实际放到唯一备战槽，不能只创建空组或放入其他卡牌');
+    }
     for (const binding of this.#state!.mechanicalSwitches ?? []) {
       if (identity(this.match, binding.active) !== binding.benchId || identity(this.match, binding.bench) !== binding.activeId) throw new ApiError('UNFINISHED_MECHANICAL_SWITCH', '已选定的交换尚未完成，不能只移动其中一只宝可梦');
     }
@@ -918,6 +957,9 @@ export class HumanActionController {
   #knockedOut(position: Position): boolean {
     const id = identity(this.match, position);
     if (!id?.startsWith('group:')) return false;
+    const state = this.#state!, intent = state.input.intent;
+    const ownAbility = intent.kind === 'ability' && state.sourceCard?.kind === 'pokemon' && state.initialIdentities[0] === id ? state.sourceCard.abilities[intent.abilityIndex]?.text : undefined;
+    if (ownAbility?.split(/[，,。；;！？!?\n]/u).some(clause => /^(?:然后|接着|之后|则)?(?:使|令|让|将)?(?:这只宝可梦|此宝可梦|自身)(?:也)?昏厥$/u.test(clause.trim().replace(/[【】\[\]「」『』]/gu, '')))) return true;
     const groupId = id.slice(6), current = this.match.state.groups[groupId];
     if (!current) return false;
     const candidates = [this.match.state, ...this.#actionRecords().map(record => record.before).reverse()];
@@ -934,6 +976,30 @@ export class HumanActionController {
     if (!scope) return {};
     const effect = request.effectText;
     if (!effect || !state.effectTexts.includes(effect)) throw new ApiError('UNBOUND_MECHANICAL_EFFECT', '机械步骤必须绑定本次真实完整卡文');
+    if (scope.kind === 'place') {
+      const answer = state.answers.find(item => item.choice.id === scope.choiceId && !item.invalidated && item.choice.kind === 'select');
+      if (!answer || !request.choiceIds.includes(answer.choice.id) || answer.identities.length !== 1 || answer.selected.length !== 1 || scope.target.member || scope.target.zoneId !== `${state.view.playerId}:bench` || !/备战/.test(effect)) throw new ApiError('INVALID_MECHANICAL_PLACEMENT', '机械放置只适用于玩家已选的单张基础宝可梦和本人唯一备战空槽');
+      const cardId = answer.identities[0]!, option = answer.choice.options.find(option => option.id === answer.selected[0]);
+      const card = option?.card;
+      if (!cardId.startsWith('card:') || this.match.state.cards[cardId.slice(5)]?.ownerId !== state.view.playerId || card?.kind !== 'pokemon' || card.stage !== '基础') throw new ApiError('INVALID_MECHANICAL_PLACEMENT', '放置卡牌必须是玩家已选且可读的本人基础宝可梦');
+      let binding = state.mechanicalPlacements?.find(item => item.choiceId === answer.choice.id && item.effectText === effect && key(item.target) === key(scope.target));
+      if (!binding) {
+        const empty = this.match.state.zones[scope.target.zoneId]!.contents.items.flatMap((ref, index) => ref ? [] : [index]);
+        if (empty.length !== 1 || empty[0] !== scope.target.index || command.kind !== 'create_group') throw new ApiError('UNCONFIRMED_TARGET', '存在多个备战空槽时仍须玩家指定；机械放置只能创建当前唯一空槽');
+        binding = { choiceId: answer.choice.id, effectText: effect, target: clone(scope.target), cardId };
+        (state.mechanicalPlacements ??= []).push(binding);
+      }
+      if (binding.cardId !== cardId) throw new ApiError('INVALID_MECHANICAL_PLACEMENT', '原放置卡牌身份已变化，不能沿用旧授权');
+      if (command.kind === 'create_group') {
+        if (binding.groupId || identity(this.match, binding.target) || command.destination.container.kind !== 'zone' || command.destination.container.zoneId !== binding.target.zoneId || command.destination.index !== binding.target.index) throw new ApiError('INVALID_MECHANICAL_PLACEMENT', '只能在原唯一空槽创建一次卡牌组');
+      } else if (command.kind === 'move') {
+        const selected = resolveSelection(this.match.state, command.source).map(ref => `${ref.kind}:${ref.id}`);
+        const destination = command.destination.container, group = binding.groupId?.startsWith('group:') ? this.match.state.groups[binding.groupId.slice(6)] : null;
+        if (canonical(selected) !== canonical([binding.cardId]) || !group || group.stack.length || destination.kind !== 'group' || destination.relation !== 'stack' || identity(this.match, destination.position) !== binding.groupId || key(destination.position) !== key(binding.target) || command.destination.index !== 0 && command.destination.index !== 'end') throw new ApiError('INVALID_MECHANICAL_PLACEMENT', '只能将原选卡牌放入刚创建的固定卡牌组叠牌');
+      } else throw new ApiError('INVALID_MECHANICAL_PLACEMENT', '该命令不属于基础宝可梦的固定放置');
+      locations.add(location(binding.target));
+      return {};
+    }
     if (scope.kind === 'switch') {
       if (!/互换|交换|替换/.test(effect) || scope.target.member) throw new ApiError('INVALID_MECHANICAL_SWITCH', '交换范围须绑定实际交换效果和已确认的备战目标');
       const target = key(scope.target);
@@ -965,7 +1031,8 @@ export class HumanActionController {
     if (command.kind !== 'move' || command.source.container.kind !== 'zone' || command.destination.container.kind !== 'zone') throw new ApiError('INVALID_MECHANICAL_MOVE', '该机械授权仅适用于限定区域间移动');
     const from = this.match.state.zones[command.source.container.zoneId], to = this.match.state.zones[command.destination.container.zoneId];
     if (scope.kind === 'draw') {
-      const step = this.#effectStep(effect, request.effectStep);
+      const step = this.#effectStep(effect, scope.effectStep ?? request.effectStep);
+      if (request.effectStep && canonical(this.#effectStep(effect, request.effectStep)) !== canonical(step)) throw new ApiError('CONFLICTING_EFFECT_STEP', '内外effectStep必须指向同一完整原文分句');
       const quote = step ? effect.slice(step.start, step.end) : '';
       if (!step || !/抽|补充手牌/.test(quote) || /最多|至多|任意|可以|可抽|选择|至[0-9]+/.test(quote) || from?.kind !== 'deck' || !from.playerId || to?.kind !== 'hand' || to.playerId !== from.playerId || command.destination.index !== 'end' || command.source.range.mode !== 'range' || command.source.range.start !== 0) throw new ApiError('INVALID_MECHANICAL_DRAW', '固定盲抽须绑定无可选数量的完整抽牌分句，牌库顶进入同席位手牌');
       if (from.playerId !== state.view.playerId && !/双方|对手|对方/.test(effect)) throw new ApiError('UNBOUND_MECHANICAL_EFFECT', '本效果未授权对手固定盲抽');
@@ -989,6 +1056,40 @@ export class HumanActionController {
     authorized.add(remaining[0]!);
     return { remainder: true };
   }
+  /** 已选招式的纯数字主伤害属于原意图；追加说明文中的可选分配不改变该固定部分。 */
+  #fixedPrimaryDamage(command: GameCommand): boolean {
+    const state = this.#state!, intent = state.input.intent;
+    if (intent.kind !== 'attack' || state.sourceCard?.kind !== 'pokemon' || command.kind !== 'set_state' || command.target.kind !== 'group' || command.field.key !== 'damageCounters') return false;
+    const printed = state.sourceCard.attacks[intent.attackIndex]?.damageText.trim() ?? '';
+    if (!/^[0-9]+$/u.test(printed)) return false;
+    const damage = Number(printed), targetId = state.initialIdentities[1];
+    const zone = this.match.state.zones[command.target.position.zoneId], originalZone = this.match.state.zones[intent.target.zoneId];
+    if (!Number.isSafeInteger(damage) || damage <= 0 || zone?.kind !== 'active' || originalZone?.kind !== 'active' || zone.playerId === state.view.playerId || !targetId?.startsWith('group:') || identity(this.match, command.target.position) !== targetId) return false;
+    const groupId = targetId.slice(6), current = this.match.state.groups[groupId];
+    if (!current || (command.field.value - current.state.damageCounters) * 10 !== damage) return false;
+    return !this.#actionRecords().some(({ command: applied, before }) => applied.kind === 'set_state' && applied.target.kind === 'group' && applied.field.key === 'damageCounters' && identityInState(before, applied.target.position) === targetId && applied.field.value > (before.groups[groupId]?.state.damageCounters ?? applied.field.value));
+  }
+  /** 选择范围的表示法不改变授权：只认可实际可读选项绑定的稳定实例及本次引用的有效选择。 */
+  #chosenReadableCards(choiceIds: string[], ids: string[], zoneId: string): boolean {
+    if (!ids.length || !choiceIds.length) return false;
+    const readable = new Set<string>();
+    for (const answer of this.#state!.answers) {
+      if (answer.invalidated || answer.choice.kind === 'number' || !choiceIds.includes(answer.choice.id)) continue;
+      const options = answer.selected.flatMap(id => { const option = answer.choice.options.find(option => option.id === id); return option?.position ? [option] : []; });
+      const keys = answer.selectionKeys ?? (options.every(option => option.card) && options.length === answer.identities.length ? answer.identities : []);
+      if (keys.length !== options.length) continue;
+      let confirmedRevision: unknown;
+      try { confirmedRevision = JSON.parse(answer.fingerprint).revision; } catch { continue; }
+      if (typeof confirmedRevision !== 'number' || !Number.isSafeInteger(confirmedRevision)) continue;
+      const shuffled = this.match.records.some(record => {
+        const command = record.request?.command as GameCommand | undefined;
+        return record.event && record.receipt?.status === 'committed' && !this.match.meta.revoked[record.event.A.id] && record.state.revision > confirmedRevision && command?.kind === 'shuffle' && command.selection.container.kind === 'zone' && command.selection.container.zoneId === zoneId;
+      });
+      if (shuffled) continue;
+      options.forEach((option, index) => { if (option.card && answer.identities.includes(keys[index]!)) readable.add(keys[index]!); });
+    }
+    return ids.every(id => readable.has(id));
+  }
   #guard(request: ExecuteRequest): AuthorizationCommit {
     const state = this.#state!, command = request.command, playerId = state.view.playerId;
     const authorization: AuthorizationCommit = { quantities: [], orders: [] };
@@ -998,9 +1099,9 @@ export class HumanActionController {
     const locations = new Set([...state.initialLocations, ...chosenLocations]);
     const effect = request.effectText && state.effectTexts.includes(request.effectText) ? request.effectText : null;
     if (request.effectText && !effect) throw new ApiError('UNBOUND_CARD_EFFECT', '额外效果必须来自本次行动实际来源卡的说明文');
-    this.#effectStep(request.effectText, request.effectStep);
+    this.#effectStep(request.effectText, effectQuote(request));
     const mechanical = this.#mechanical(request, authorized, locations);
-    if (effect && command.kind !== 'look' && command.kind !== 'declare' && /可选择|最多|至多|任意|选择是否|可以抽|可抽|可以从|可以将/.test(effect) && !request.choiceIds.length && !state.answers.length) throw new ApiError('UNCONFIRMED_OPTIONAL_EFFECT', '可选效果或数量必须先由人决定');
+    if (effect && command.kind !== 'look' && command.kind !== 'declare' && /可选择|最多|至多|任意|选择是否|可以抽|可抽|可以从|可以将/.test(effect) && !request.choiceIds.length && !state.answers.length && !this.#fixedPrimaryDamage(command)) throw new ApiError('UNCONFIRMED_OPTIONAL_EFFECT', '可选效果或数量必须先由人决定');
     if (['object', 'respond', 'concede', 'choose_first', 'initial_placement', 'mulligan_draw', 'additional_bench'].includes(command.kind)) throw new ApiError('OUTSIDE_HUMAN_INTENT', '该步骤不属于当前人类行动');
     if (state.input.intent.kind === 'turn_start' && command.kind === 'report_result' && (this.match.state.zones[`${playerId}:deck`]!.contents.items.length || this.#movements().some(item => item.command.source.container.kind === 'zone' && item.command.source.container.zoneId === `${playerId}:deck`) || command.result.kind !== 'win' || command.result.winner === playerId)) throw new ApiError('INVALID_TURN_START_RESULT', '只有开局抽牌前牌库已空时才能按无法抽牌申报对手获胜');
     if (command.kind === 'handoff' && state.input.intent.kind === 'resolve_handoff') {
@@ -1065,13 +1166,14 @@ export class HumanActionController {
       if (command.kind === 'shuffle' && (!effect || !/洗|打乱/.test(effect))) throw new ApiError('UNBOUND_CARD_EFFECT', '洗牌必须属于本次卡文的必要处理');
       if (command.kind === 'move' || command.kind === 'show') {
         const starting = state.input.intent.kind === 'turn_start';
-        const blindDraw = command.kind === 'move' && (zoneId === `${playerId}:deck` || mechanical.draw) && command.destination.container.kind === 'zone' && (command.destination.container.zoneId === `${zone.playerId}:hand` || starting && command.destination.container.zoneId === `${playerId}:staging`) && selection.range.mode === 'range' && selection.range.start === 0;
+        const ids = selected.map(ref => `${ref.kind}:${ref.id}`);
+        const chosenCards = this.#chosenReadableCards(request.choiceIds, ids, zoneId);
+        const blindDraw = command.kind === 'move' && (zoneId === `${playerId}:deck` || mechanical.draw) && command.destination.container.kind === 'zone' && (command.destination.container.zoneId === `${zone.playerId}:hand` || starting && command.destination.container.zoneId === `${playerId}:staging`) && selection.range.mode === 'range' && selection.range.start === 0 && !chosenCards;
         if (blindDraw && (state.input.intent.kind === 'draw' || starting) && this.#movements().some(item => item.command.source.container.kind === 'zone' && item.command.source.container.zoneId === `${playerId}:deck`)) throw new ApiError('HUMAN_ACTION_ALREADY_APPLIED', '本次抽牌已经执行，不能重复抽取');
         const mechanicalDraw = mechanical.draw || blindDraw && ((state.input.intent.kind === 'draw' || starting) && selected.length === 1 || Boolean(effect && /抽|补充手牌/.test(effect)));
         const knockoutCleanup = command.kind === 'move' && container.kind === 'group' && (authorizedAt(container.position) || this.#checkTarget(container.position)) && this.#knockedOut(container.position) && command.destination.container.kind === 'zone' && command.destination.container.zoneId === `${zone.playerId}:discard`;
         const wholeContainer = selection.range.mode === 'all' && (knockoutCleanup || Boolean(effect && /所有|全部|整副|整叠|整手/.test(effect)));
         if (blindDraw && !mechanicalDraw) throw new ApiError('OUTSIDE_HUMAN_INTENT', '当前行动没有授权额外抽牌');
-        const ids = selected.map(ref => `${ref.kind}:${ref.id}`);
         const subsetChoices = state.answers.filter(answer => !answer.invalidated && answer.choice.kind !== 'number' && answer.identities.length && (request.choiceIds.includes(answer.choice.id)
           || answer.choice.options.some(option => option.position && (option.position.member ? this.#containerKey({ kind: 'group', position: { zoneId: option.position.zoneId, index: option.position.index }, relation: option.position.member.relation }) : `zone:${option.position.zoneId}`) === this.#containerKey(container)) && answer.identities.some(id => ids.includes(id) && (answer.choice.kind === 'order' || !answer.consumed.includes(id)))));
         if (!knockoutCleanup && !mechanical.remainder && subsetChoices.length && ids.some(id => !authorized.has(id))) throw new ApiError('UNCONFIRMED_SELECTION', '整区或盲抽快捷不能覆盖本来源已由人确认的卡牌子集');
@@ -1149,7 +1251,7 @@ export class HumanActionController {
       // 新建卡牌组的身份由执行端绑定，模型不能自行创造授权对象。
       if (pending.command.kind === 'create_group' && pending.command.destination.container.kind === 'zone') {
         const position = { zoneId: pending.command.destination.container.zoneId, index: pending.command.destination.index };
-        const id = identity(this.match, position); if (id) state.initialIdentities.push(id);
+        const id = identity(this.match, position); if (id) { state.initialIdentities.push(id); for (const binding of state.mechanicalPlacements ?? []) if (key(binding.target) === key(position) && !binding.groupId) binding.groupId = id; }
       }
       if (state.input.intent.kind === 'turn_start' && pending.command.kind === 'move' && pending.command.source.container.kind === 'zone' && pending.command.source.container.zoneId === `${state.view.playerId}:deck`) {
         state.initialIdentities.push(...consumed.filter(id => !state.initialIdentities.includes(id)));
@@ -1170,6 +1272,7 @@ export class HumanActionController {
       const request = sequence.steps[sequence.next]!;
       try {
         const authorization = this.#guard(request);
+        if (signal.aborted) return;
         state.pending = { requestId: `human:${state.view.id}:${uid()}`, revision: this.match.state.revision, command: request.command, callId: sequence.callId, sequenceIndex: sequence.next,
           consumedIdentities: request.command.kind === 'move' ? resolveSelection(this.match.state, request.command.source).map(ref => `${ref.kind}:${ref.id}`) : [], authorization };
         await this.#save(); await this.#executePending();
@@ -1279,6 +1382,7 @@ export class HumanActionController {
           } else
           if (call.name === 'execute_atomic') {
             const request = args as ExecuteRequest, authorization = this.#guard(request);
+            if (signal.aborted) return;
             state.pending = { requestId: `human:${state.view.id}:${uid()}`, revision: this.match.state.revision, command: request.command, callId: call.callId,
               consumedIdentities: request.command.kind === 'move' ? resolveSelection(this.match.state, request.command.source).map(ref => `${ref.kind}:${ref.id}`) : [], authorization };
             await this.#save(); await this.#executePending();

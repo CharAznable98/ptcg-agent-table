@@ -163,9 +163,11 @@ try {
     const requestCall = evidence.calls.find(call => call.name === 'request_choice' && call.arguments.kind === 'number'); assert.ok(requestCall);
     assert.equal(requestCall.arguments.effectText, coinEffect);
     assert.ok(requestCall.arguments.quantityScopes?.some(scope => scope.kind === 'random' && scope.mode === 'coins' && scope.effectStep === optionalCoinStep));
+    const executions = evidence.calls.flatMap(call => call.name === 'execute_atomic' ? [call.arguments]
+      : call.name === 'execute_sequence' && Array.isArray(call.arguments.steps) ? call.arguments.steps as ExecutorCall['arguments'][] : []);
     for (const [count, step] of [[2, optionalCoinStep], [1, fixedCoinStep]] as const) {
-      const execution = evidence.calls.find(call => call.name === 'execute_atomic' && call.arguments.command?.kind === 'random' && call.arguments.command.count === count && call.arguments.effectStep === step && call.arguments.effectText === coinEffect); assert.ok(execution);
-      assert.equal(execution.arguments.choiceIds?.includes(answer.choice.id), count === 2, '固定投1不得借用前段数量选择');
+      const execution = executions.find(args => args.command?.kind === 'random' && args.command.count === count && args.effectStep === step && args.effectText === coinEffect); assert.ok(execution);
+      assert.equal(execution.choiceIds?.includes(answer.choice.id), count === 2, '固定投1不得借用前段数量选择');
     }
     assert.equal(evidence.effectStepUses.length, 2); return { actualCounts, ...evidence };
   } });
