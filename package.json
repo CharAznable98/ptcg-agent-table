@@ -24,6 +24,8 @@
     "start": "node apps/server/src/main.ts",
     "validate:agent": "node scripts/validate-agent.ts",
     "validate:throughput": "node scripts/validate-throughput.ts",
+    "eval:requests": "node scripts/request-eval.ts",
+    "eval:requests:verify": "node scripts/request-eval.ts verify evals/requests/v1.json",
     "report:usage": "node scripts/report-usage.ts"
   },
   "dependencies": {

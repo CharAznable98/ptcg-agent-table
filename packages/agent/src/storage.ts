@@ -6,12 +6,14 @@ import type { PlayerSession, SessionStore, TraceSink } from './types.ts';
 /** 精确凭证替换加常见字段屏蔽；调用方只应提交无认证字段的请求正文。 */
 export class SecretRedactor {
   #secrets = new Set<string>();
-  add(secret: string | undefined): void { if (secret && secret.length >= 8) this.#secrets.add(secret); }
+  add(secret: string | undefined): void { if (secret) this.#secrets.add(secret); }
   clean<T>(value: T): T {
-    let text = JSON.stringify(value, (key, item: unknown) =>
-      /^(authorization|access_token|refresh_token|id_token|api_key|account_id)$/i.test(key) ? '[REDACTED]' : item,
-    );
-    for (const secret of this.#secrets) text = text.replaceAll(secret, '[REDACTED]');
+    const text = JSON.stringify(value, (key, item: unknown) => {
+      if (/^(authorization|access_token|refresh_token|id_token|api_?key|account_id)$/i.test(key)) return '[REDACTED]';
+      if (typeof item !== 'string') return item;
+      for (const secret of this.#secrets) item = (item as string).replaceAll(secret, '[REDACTED]');
+      return item;
+    });
     return JSON.parse(text) as T;
   }
 }

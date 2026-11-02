@@ -6,6 +6,7 @@ import type { ModelGateway, ModelItem, ModelReply, ModelRequest, TraceSink } fro
 import { SecretRedactor } from './storage.ts';
 import { ToolArgumentStream } from './json-stream.ts';
 import { tokenUsage } from './usage.ts';
+import type { ReasoningEffort } from '../../protocol/src/index.ts';
 
 /** 认证仅供 HTTP 层使用，不传给 agent 或研究记录。 */
 export interface CredentialSource {
@@ -48,6 +49,32 @@ export class EnvironmentCredentials implements CredentialSource {
   }
 }
 
+/** 设置页草稿只在本次请求内使用。 */
+export class DirectApiKeyCredentials implements CredentialSource {
+  #token: string;
+  readonly redactor: SecretRedactor;
+  constructor(token: string, redactor = new SecretRedactor()) {
+    this.#token = token; this.redactor = redactor; redactor.add(token);
+  }
+  async headers(): Promise<Record<string, string>> {
+    return this.#token ? { Authorization: `Bearer ${this.#token}` } : {};
+  }
+}
+
+/** 对局快照保存文件引用；密钥正文仅在发起请求时读取。 */
+export class FileApiKeyCredentials implements CredentialSource {
+  readonly path: string;
+  readonly redactor: SecretRedactor;
+  constructor(path: string, redactor = new SecretRedactor()) { this.path = path; this.redactor = redactor; }
+  async headers(): Promise<Record<string, string>> {
+    let value: { apiKey?: unknown };
+    try { value = JSON.parse(await readFile(this.path, 'utf8')) as typeof value; }
+    catch { throw new ModelError('AUTH_UNAVAILABLE', '无法读取已保存的 API Key，请在系统配置中重新填写', false); }
+    if (typeof value?.apiKey !== 'string' || !value.apiKey.trim()) throw new ModelError('AUTH_UNAVAILABLE', '已保存的 API Key 无效，请重新填写', false);
+    return new DirectApiKeyCredentials(value.apiKey, this.redactor).headers();
+  }
+}
+
 export class ModelError extends Error {
   readonly code: string;
   readonly retryable: boolean;
@@ -60,7 +87,7 @@ export interface HttpModelOptions {
   credentials: CredentialSource;
   protocol: 'responses' | 'chat_completions';
   model: string;
-  reasoningEffort: 'medium';
+  reasoningEffort: ReasoningEffort;
   /** 本轮固定关闭 fast；请求明确使用 default，绝不静默改成 priority。 */
   fast: false;
   /** 同一席位和角色复用稳定key；不按调用ID、回合或复盘分页变化。 */
@@ -104,9 +131,12 @@ function wireBody(options: HttpModelOptions, request: ModelRequest): Record<stri
   const session = request.role === 'summary' && request.sessionId.startsWith('summary:') ? request.sessionId.split(':').slice(0, 2).join(':') : request.sessionId;
   const cache = options.cacheKeyStrategy === 'session' ? { prompt_cache_key: 'ptcg:' + createHash('sha256').update(JSON.stringify([request.role, session])).digest('hex').slice(0, 48) } : {};
   const common = { model: options.model, tools: functionTools(request, chat), tool_choice: choice, parallel_tool_calls: false, service_tier: 'default', ...cache };
+  const effort = options.reasoningEffort === 'default' ? {} : chat
+    ? { reasoning_effort: options.reasoningEffort }
+    : { reasoning: { effort: options.reasoningEffort } };
   return chat
-    ? { ...common, messages: toChatMessages(request.instructions, request.input), reasoning_effort: options.reasoningEffort, stream: false }
-    : { ...common, instructions: request.instructions, input: request.input, reasoning: { effort: options.reasoningEffort }, stream: true, store: false };
+    ? { ...common, messages: toChatMessages(request.instructions, request.input), ...effort, stream: false }
+    : { ...common, instructions: request.instructions, input: request.input, ...effort, stream: true, store: false };
 }
 
 /** 逐段处理 SSE：支持 CRLF、多行 data 及任意网络分片；必须收到 completed。 */
@@ -209,7 +239,7 @@ export class HttpModelGateway implements ModelGateway {
         if (reply.model !== this.options.model) throw new ModelError('MODEL_MISMATCH', '服务端返回的模型与请求不一致', false);
         if (this.options.protocol === 'responses') {
           const reasoning = raw.reasoning as ModelItem | undefined;
-          if (reasoning?.effort && reasoning.effort !== this.options.reasoningEffort) throw new ModelError('EFFORT_MISMATCH', '服务端未使用指定思考强度', false);
+          if (this.options.reasoningEffort !== 'default' && reasoning?.effort && reasoning.effort !== this.options.reasoningEffort) throw new ModelError('EFFORT_MISMATCH', '服务端未使用指定思考强度', false);
           if (raw.service_tier && raw.service_tier !== 'default') throw new ModelError('SERVICE_TIER_MISMATCH', '服务端未使用非 fast 的 default 服务', false);
         }
         await this.#record({ kind: 'model_finished', callId, attempt, role: request.role, sessionId: request.sessionId, elapsedMs: Date.now() - started, tokenUsage: tokenUsage(raw.usage), response: raw });

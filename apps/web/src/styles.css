@@ -226,6 +226,18 @@ em {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
+fieldset.form-grid {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.opponent-editor-busy {
+  min-height: 0;
+  justify-content: flex-start;
+  margin-top: 16px;
+  font-size: 13px;
+}
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -812,6 +824,12 @@ em {
 }
 .settings-content {
   max-width: 780px;
+}
+.model-settings-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
 }
 .settings-content h2 {
   font-family: "Songti SC", serif;

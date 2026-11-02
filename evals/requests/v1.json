@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "id": "ptcg-requests-v1",
+  "fixture": {
+    "directory": "fixtures/v1",
+    "manifestHash": "e2612d30dd1c33f91bd0ee66c595f26ce3170430f50a14a48047881d0833ee9e"
+  },
+  "grading": {
+    "automatic": "协议、实际有效执行前缀及场景声明的检查。",
+    "manual": "规则正确性、额外副作用和行动完成度单列；自动检查通过不等于完整合法。"
+  },
+  "questions": [
+    {
+      "id": "turn-start-draw",
+      "title": "回合开始先抽1张",
+      "category": "flow",
+      "inputHash": "e3e41bb81c3dc518f72faf0112be31580f8ac717e91d1d2b37e64077356c8bd1",
+      "source": {
+        "matchId": "1e46c214-11c1-45d0-b608-360263a7b990",
+        "callId": "b0534619-a732-49c9-b89f-fbc40a959033",
+        "playerId": "B",
+        "revision": 30,
+        "sequence": 32,
+        "traceLine": 106,
+        "traceHash": "7a359f1135a88a83acd96f1043e8226ce30e07fe145519391b27a6cfa7620582",
+        "journalHash": "b15b70cb4514d12abc7bb734db25a3eac3edf11cd658b8c6f94561d8d60d9a67",
+        "historyCutoff": {
+          "format": "trace-receipts-v1",
+          "revisionEntrySequence": 32,
+          "lastObservedSequence": null
+        }
+      },
+      "oracle": {
+        "kind": "turn_draw"
+      },
+      "manualReview": [
+        "回合开始抽牌必须先于出牌和附能。",
+        "新增信息触发观察边界后，未执行后缀不算完成。"
+      ]
+    },
+    {
+      "id": "viewed-top-two",
+      "title": "查看牌库顶部两张后的选择与归底",
+      "category": "flow",
+      "inputHash": "41ae37bcd7223dcc1b802f055d40553fbc229f187c6d0c6e5257ccd14b2e3c88",
+      "source": {
+        "matchId": "1e46c214-11c1-45d0-b608-360263a7b990",
+        "callId": "4b1c93bc-6e69-4e2e-822e-8473e6603f2e",
+        "playerId": "A",
+        "revision": 223,
+        "sequence": 239,
+        "traceLine": 9443,
+        "traceHash": "7a359f1135a88a83acd96f1043e8226ce30e07fe145519391b27a6cfa7620582",
+        "journalHash": "b15b70cb4514d12abc7bb734db25a3eac3edf11cd658b8c6f94561d8d60d9a67",
+        "historyCutoff": {
+          "format": "trace-receipts-v1",
+          "revisionEntrySequence": 239,
+          "lastObservedSequence": 239
+        }
+      },
+      "oracle": {
+        "kind": "top_partition",
+        "count": 2
+      },
+      "manualReview": [
+        "选择和归底必须来自实际已查看集合，允许不同合法选择。",
+        "核对两张牌身份及最终位置，不能按错误历史回复判分。"
+      ]
+    },
+    {
+      "id": "resistance-dispute",
+      "title": "伤害加成与抗性抵消后的异议回应",
+      "category": "flow",
+      "inputHash": "4239d9f6079c285c887bdf5930087345a2a197f93f335c76dde8255dd4043e42",
+      "source": {
+        "matchId": "1e46c214-11c1-45d0-b608-360263a7b990",
+        "callId": "fb79f557-77c6-4172-b73f-5216b4831ded",
+        "playerId": "B",
+        "revision": 217,
+        "sequence": 230,
+        "traceLine": 8362,
+        "traceHash": "7a359f1135a88a83acd96f1043e8226ce30e07fe145519391b27a6cfa7620582",
+        "journalHash": "b15b70cb4514d12abc7bb734db25a3eac3edf11cd658b8c6f94561d8d60d9a67",
+        "historyCutoff": {
+          "format": "trace-receipts-v1",
+          "revisionEntrySequence": 230,
+          "lastObservedSequence": 230
+        }
+      },
+      "oracle": {
+        "kind": "dispute_response",
+        "response": "defend",
+        "reasonGroups": [
+          [
+            "抗性",
+            "抵抗"
+          ],
+          [
+            "30",
+            "三十"
+          ],
+          [
+            "100",
+            "10个",
+            "10 个",
+            "一百",
+            "十个"
+          ]
+        ]
+      },
+      "manualReview": [
+        "核对伤害、加成、抗性及恢复提议；回应须符合证据。",
+        "不以接受异议后引擎成功恢复，代替处置合法性。"
+      ]
+    },
+    {
+      "id": "poffin-basic-only",
+      "title": "友好宝芬不能选1阶宝可梦",
+      "category": "anomaly",
+      "inputHash": "6b4257dc500d4f72c299cc17ad122c48cf3f47d1d38ec0af01782765622dc635",
+      "source": {
+        "matchId": "68c8f71e-544f-494b-b291-cb024b1012b6",
+        "callId": "8ef4a7a4-6a70-4928-8fa9-0f15b7478b72",
+        "playerId": "A",
+        "revision": 39,
+        "sequence": 43,
+        "traceLine": 119,
+        "traceHash": "e80bef9a4413c01da52ea62bc40bd9b4b21383c88e03ca192f8362fd3d62af39",
+        "journalHash": "93a966ef95da3fc924b84da19ec95cbe9c05377f580c718b8cd5c1d9875748ff",
+        "historyCutoff": {
+          "format": "trace-receipts-v1",
+          "revisionEntrySequence": 42,
+          "lastObservedSequence": 43
+        }
+      },
+      "oracle": {
+        "kind": "state_safety",
+        "checks": [
+          {
+            "kind": "bench_from_deck",
+            "stage": "基础",
+            "maxHp": 70
+          }
+        ]
+      },
+      "manualReview": [
+        "检索对象满足卡文阶段和HP条件。",
+        "核对实际消耗的物品身份，不能弃置另一张手牌代替；选牌、放置和洗牌逐步核实。"
+      ]
+    },
+    {
+      "id": "item-not-attachment",
+      "title": "不得新增神奇糖果附着",
+      "category": "anomaly",
+      "inputHash": "05a1ceb17e8b0dbf58b2ed0d228ae09c021439f84dc8b9af387e6ddd59187921",
+      "source": {
+        "matchId": "68c8f71e-544f-494b-b291-cb024b1012b6",
+        "callId": "bcf33720-a628-41a1-b189-a9e85668ad37",
+        "playerId": "B",
+        "revision": 93,
+        "sequence": 99,
+        "traceLine": 1083,
+        "traceHash": "e80bef9a4413c01da52ea62bc40bd9b4b21383c88e03ca192f8362fd3d62af39",
+        "journalHash": "93a966ef95da3fc924b84da19ec95cbe9c05377f580c718b8cd5c1d9875748ff",
+        "historyCutoff": {
+          "format": "trace-receipts-v1",
+          "revisionEntrySequence": 99,
+          "lastObservedSequence": 99
+        }
+      },
+      "oracle": {
+        "kind": "state_safety",
+        "checks": [
+          {
+            "kind": "new_item_attachment"
+          }
+        ]
+      },
+      "manualReview": [
+        "检查所有本次新增附着，不只检查指定物品。",
+        "场上对象按最新快照确认；转做其他效果须有合法使用来源，修正过程保留可追溯记录。"
+      ]
+    },
+    {
+      "id": "evolution-lineage",
+      "title": "不得把不相干进化叠到含羞苞",
+      "category": "anomaly",
+      "inputHash": "cd9b29cecb1bb12ede63388da47e9a694c4960aca717631a1d310c4eeeb7fb68",
+      "source": {
+        "matchId": "68c8f71e-544f-494b-b291-cb024b1012b6",
+        "callId": "41424db0-a0fc-48ae-9751-8e9b54f3e4ac",
+        "playerId": "B",
+        "revision": 94,
+        "sequence": 100,
+        "traceLine": 1101,
+        "traceHash": "e80bef9a4413c01da52ea62bc40bd9b4b21383c88e03ca192f8362fd3d62af39",
+        "journalHash": "93a966ef95da3fc924b84da19ec95cbe9c05377f580c718b8cd5c1d9875748ff",
+        "historyCutoff": {
+          "format": "trace-receipts-v1",
+          "revisionEntrySequence": 100,
+          "lastObservedSequence": 100
+        }
+      },
+      "oracle": {
+        "kind": "state_safety",
+        "checks": [
+          {
+            "kind": "new_stack_lineage"
+          }
+        ]
+      },
+      "manualReview": [
+        "核对实际进化链、回合及出场时点，不把宣告当作完成。",
+        "同时核对候选新增附着和移动，避免用另一种错误绕过进化检查。"
+      ]
+    },
+    {
+      "id": "stadium-not-pokemon",
+      "title": "不得把宝可梦卡牌组放进竞技场",
+      "category": "anomaly",
+      "inputHash": "e82a7a716babfa7574c5e86c68aee2a65030f5c842df21fbcff5a3641147e44e",
+      "source": {
+        "matchId": "68c8f71e-544f-494b-b291-cb024b1012b6",
+        "callId": "9a3bc8b8-6869-43ec-99f6-569da0e1d152",
+        "playerId": "B",
+        "revision": 96,
+        "sequence": 102,
+        "traceLine": 1121,
+        "traceHash": "e80bef9a4413c01da52ea62bc40bd9b4b21383c88e03ca192f8362fd3d62af39",
+        "journalHash": "93a966ef95da3fc924b84da19ec95cbe9c05377f580c718b8cd5c1d9875748ff",
+        "historyCutoff": {
+          "format": "trace-receipts-v1",
+          "revisionEntrySequence": 102,
+          "lastObservedSequence": 102
+        }
+      },
+      "oracle": {
+        "kind": "state_safety",
+        "checks": [
+          {
+            "kind": "new_stadium_group"
+          }
+        ]
+      },
+      "manualReview": [
+        "竞技场、战斗场及备战对象按实际身份和容器核对。",
+        "不能无依据弃置宝可梦或只搬牌来掩盖旧错误；区分恢复提议与恢复已完成。"
+      ]
+    },
+    {
+      "id": "invalid-container-retry",
+      "title": "失败后不能再次对散牌使用组容器",
+      "category": "anomaly",
+      "inputHash": "ff33478308d32ccc3af720c60624e1122229582784c77183e18bbff7de1f28d3",
+      "source": {
+        "matchId": "68c8f71e-544f-494b-b291-cb024b1012b6",
+        "callId": "2c190d81-3b5f-44ca-a8e4-ebeca355b3f1",
+        "playerId": "B",
+        "revision": 101,
+        "sequence": 108,
+        "traceLine": 1159,
+        "traceHash": "e80bef9a4413c01da52ea62bc40bd9b4b21383c88e03ca192f8362fd3d62af39",
+        "journalHash": "93a966ef95da3fc924b84da19ec95cbe9c05377f580c718b8cd5c1d9875748ff",
+        "historyCutoff": {
+          "format": "trace-receipts-v1",
+          "revisionEntrySequence": 107,
+          "lastObservedSequence": 108
+        }
+      },
+      "oracle": {
+        "kind": "state_safety",
+        "checks": [
+          {
+            "kind": "no_rejected_operation"
+          }
+        ]
+      },
+      "manualReview": [
+        "依据最新对象类型和已有拒绝反馈选择容器，禁止重复无效操作。",
+        "单独记录历史读取、有效修正及结算完成；已提交前缀和失败后缀分开核验。"
+      ]
+    }
+  ]
+}

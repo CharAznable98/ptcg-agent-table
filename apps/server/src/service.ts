@@ -1,26 +1,28 @@
 import { mkdir, readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
-import { AgentRuntime, FileSessionStore, JsonlTrace, SecretRedactor, createModel, loadModelConfig, loadPrompts, parsePrompts, validationError, ModelConfigSchema, renderPolicy, strategyScope, validatePolicy } from '../../../packages/agent/src/index.ts';
-import type { ModelConfig, ModelGateway, PromptBundle } from '../../../packages/agent/src/index.ts';
+import { AgentRuntime, FileSessionStore, JsonlTrace, SecretRedactor, createModel, loadPrompts, parsePrompts, validationError, renderPolicy, strategyScope, validatePolicy } from '../../../packages/agent/src/index.ts';
+import type { CredentialSource, ModelConfig, ModelGateway, PromptBundle } from '../../../packages/agent/src/index.ts';
 import type { Static, TSchema } from '@sinclair/typebox';
 import { DeckSchema, CreateMatchInputSchema, CreateOpponentInputSchema, UpdateOpponentInputSchema, OpponentRecordSchema } from '../../../packages/protocol/src/index.ts';
-import type { CreateMatchInput, CreateMatchResponse, DeckData, DeckRecord, OpponentRecord, PlayerId, PlayerSpec, PromptConfig, StrategyVersion } from '../../../packages/protocol/src/index.ts';
+import type { CreateMatchInput, CreateMatchResponse, DeckData, DeckRecord, ModelSettings, ModelTestResult, OpponentRecord, PlayerId, PlayerSpec, PromptConfig, StrategyVersion } from '../../../packages/protocol/src/index.ts';
 import { ApiError, atomicJson, clone, JsonRepository, now, readJson, uid } from './storage.ts';
 import { asJson, MatchRuntime } from './match.ts';
 import { Evaluations } from './evaluations.ts';
 import { runtimeFingerprint } from './runtime-fingerprint.ts';
 import { HumanActionController } from './human-actions.ts';
+import { ModelSettingsStore } from './model-settings.ts';
 
 function checked<T>(schema: TSchema, value: unknown, code: string): T { const error = validationError(schema, value); if (error) throw new ApiError(code, error); return clone(value as T); }
 
-export interface ServiceOptions { dataDir?: string; systemDir?: string; rulesDir?: string; modelFactory?: (config: ModelConfig, trace: JsonlTrace) => ModelGateway }
+export interface ServiceOptions { dataDir?: string; systemDir?: string; rulesDir?: string; modelFactory?: (config: ModelConfig, trace: JsonlTrace, credentialsOverride?: CredentialSource) => ModelGateway }
 export class GameService {
   readonly evaluations: Evaluations;
   runtimeHash = '';
   readonly dataDir: string; readonly systemDir: string; readonly rulesDir: string;
   readonly decks: JsonRepository<DeckRecord>; readonly opponents: JsonRepository<OpponentRecord>; readonly matches = new Map<string, MatchRuntime>();
   readonly modelFactory: NonNullable<ServiceOptions['modelFactory']>;
+  readonly modelSettings: ModelSettingsStore;
   readonly drivers = new Map<string, { controller: AbortController; promise: Promise<void> }>();
   readonly humanControllers = new Map<string, HumanActionController>();
   #humanSubscriptions = new Map<MatchRuntime, () => void>();
@@ -31,7 +33,8 @@ export class GameService {
   constructor(options: ServiceOptions = {}) {
     this.dataDir = resolve(options.dataDir ?? 'data'); this.systemDir = resolve(options.systemDir ?? 'system'); this.rulesDir = resolve(options.rulesDir ?? 'rules');
     this.decks = new JsonRepository(join(this.dataDir, 'decks')); this.opponents = new JsonRepository(join(this.dataDir, 'opponents'));
-    this.modelFactory = options.modelFactory ?? ((config, trace) => createModel(config, trace, trace.redactor));
+    this.modelFactory = options.modelFactory ?? ((config, trace, credentialsOverride) => createModel(config, trace, trace.redactor, credentialsOverride));
+    this.modelSettings = new ModelSettingsStore(this.dataDir, this.systemDir);
     this.evaluations = new Evaluations(this);
   }
   async init(): Promise<void> {
@@ -139,16 +142,21 @@ export class GameService {
     let result: PromptBundle; try { result = parsePrompts(input); } catch (error) { throw new ApiError('INVALID_PROMPTS', error instanceof Error ? error.message : '提示词配置格式错误'); }
     await atomicJson(join(this.systemDir, 'prompts.json'), result); return result;
   }
-  async modelConfig(): Promise<ModelConfig> {
-    const configured = await readJson<ModelConfig>(join(this.systemDir, 'agent.json'));
-    if (configured) return configured;
-    try { return await loadModelConfig(join(this.systemDir, 'agent.example.json')); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; return { schemaVersion: 1, model: 'gpt-6.1-terra', reasoningEffort: 'medium', fast: false, connection: { kind: 'local_codex_credentials' } }; }
-  }
-  async saveModel(input: unknown): Promise<ModelConfig> { const error = validationError(ModelConfigSchema, input); if (error) throw new ApiError('INVALID_MODEL_CONFIG', error); const value = input as ModelConfig; await atomicJson(join(this.systemDir, 'agent.json'), value); return clone(value); }
-  async testModel(): Promise<Record<string, unknown>> {
+  async modelConfig(): Promise<ModelConfig> { return this.modelSettings.config(); }
+  async saveModel(input: unknown): Promise<ModelSettings> { return this.modelSettings.save(input); }
+  async testModel(input?: unknown): Promise<ModelTestResult> {
     const start = Date.now();
-    try { const config = await this.modelConfig(); const trace = new JsonlTrace(join(this.dataDir, 'model-tests.jsonl')); const model = this.modelFactory(config, trace); const reply = await model.generate({ role: 'player', sessionId: `connection-test:${uid()}`, instructions: (await this.prompts()).feedback.modelTestInstructions!, input: [{ role: 'user', content: (await this.prompts()).feedback.modelTestUser! }], tools: [] }); return { ok: true, model: reply.model, effort: config.reasoningEffort, serviceTier: 'default', elapsedMs: Date.now() - start }; }
-    catch (error) { return { ok: false, elapsedMs: Date.now() - start, error: error instanceof Error ? error.message : '连接失败' }; }
+    const redactor = new SecretRedactor();
+    try {
+      const { config, apiKey } = await this.modelSettings.draft(input);
+      if (apiKey) redactor.add(apiKey);
+      const trace = new JsonlTrace(join(this.dataDir, 'model-tests.jsonl'), redactor);
+      const credentials = this.modelSettings.credentials(config, redactor, apiKey);
+      const model = this.modelFactory(config, trace, credentials);
+      const prompts = await this.prompts();
+      const reply = await model.generate({ role: 'player', sessionId: `connection-test:${uid()}`, instructions: prompts.feedback.modelTestInstructions!, input: [{ role: 'user', content: prompts.feedback.modelTestUser! }], tools: [] });
+      return { ok: true, model: reply.model, effort: config.reasoningEffort, serviceTier: 'default', elapsedMs: Date.now() - start };
+    } catch (error) { return { ok: false, elapsedMs: Date.now() - start, error: redactor.clean(error instanceof Error ? error.message : '连接失败') }; }
   }
   #uniqueOpponents(players: PlayerSpec[]): void {
     const ids = players.filter(player => player.kind === 'ai').map(player => player.opponentId);

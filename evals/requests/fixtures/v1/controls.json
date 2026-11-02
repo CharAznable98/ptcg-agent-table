@@ -1,0 +1,344 @@
+{
+  "schemaVersion": 1,
+  "description": "Offline automatic-check regression controls; these are not complete-rule or unique-answer oracles.",
+  "controls": [
+    {
+      "id": "turn-start-draw-accepted-prefix",
+      "caseId": "turn-start-draw",
+      "expectedAutomaticPass": true,
+      "sourceReplyHash": "89aed8f3ad818afa8cc34b2c5eac3ed396376d82ff20684da5ad00196f502405",
+      "reply": {
+        "id": "control-turn-start-draw-accepted-prefix",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_1636617991b343e9ba40f0f7b8e9fa6a",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"move\",\"arguments\":{\"source\":\"B:deck/0\",\"destination\":\"B:hand/0\"}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_1636617991b343e9ba40f0f7b8e9fa6a",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"move\",\"arguments\":{\"source\":\"B:deck/0\",\"destination\":\"B:hand/0\"}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "viewed-top-two-accepted-prefix",
+      "caseId": "viewed-top-two",
+      "expectedAutomaticPass": true,
+      "sourceReplyHash": "b9d1165f4dfdca3f39bbeb3cbe301cce2369d5126d169529c0eb9298736f2541",
+      "reply": {
+        "id": "control-viewed-top-two-accepted-prefix",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_608cc65528634362a98d57f9a5341542",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"move\",\"arguments\":{\"source\":\"A:deck/0\",\"destination\":\"A:hand/0\"}},{\"tool\":\"move\",\"arguments\":{\"source\":\"A:deck/0\",\"destination\":\"A:deck/end\"}},{\"tool\":\"declare\",\"arguments\":{\"text\":\"多龙奇（备战区1）使用侦察指令。\"}},{\"tool\":\"look\",\"arguments\":{\"selection\":{\"at\":\"A:deck\",\"start\":0,\"count\":2}}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_608cc65528634362a98d57f9a5341542",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"move\",\"arguments\":{\"source\":\"A:deck/0\",\"destination\":\"A:hand/0\"}},{\"tool\":\"move\",\"arguments\":{\"source\":\"A:deck/0\",\"destination\":\"A:deck/end\"}},{\"tool\":\"declare\",\"arguments\":{\"text\":\"多龙奇（备战区1）使用侦察指令。\"}},{\"tool\":\"look\",\"arguments\":{\"selection\":{\"at\":\"A:deck\",\"start\":0,\"count\":2}}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "resistance-dispute-accepted-prefix",
+      "caseId": "resistance-dispute",
+      "expectedAutomaticPass": true,
+      "sourceReplyHash": "3f294f0cc5c5c291f025ec804fcb8fc15d254c3a0eae449a99db242ebee3eca1",
+      "reply": {
+        "id": "control-resistance-dispute-accepted-prefix",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_5172351896da486fb643a1ea030da8a0",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"respond\",\"arguments\":{\"response\":{\"kind\":\"defend\",\"disputeId\":\"e3009f47-23b8-4e70-8d13-7e41154285c4\",\"reason\":\"荣耀声援加30后为130，但拉帝亚斯ex有斗抗性−30，故实际伤害为100，10个指示物正确。\",\"evidenceRefs\":[\"874862ee-7cb8-4aa4-b8cb-3df439504203\",\"cd6a3b80-3615-4f0d-87a1-a9fc9893ab80\",\"d3811be2-ca5e-4bad-ad38-dd8d0ce919cd\"]}}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_5172351896da486fb643a1ea030da8a0",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"respond\",\"arguments\":{\"response\":{\"kind\":\"defend\",\"disputeId\":\"e3009f47-23b8-4e70-8d13-7e41154285c4\",\"reason\":\"荣耀声援加30后为130，但拉帝亚斯ex有斗抗性−30，故实际伤害为100，10个指示物正确。\",\"evidenceRefs\":[\"874862ee-7cb8-4aa4-b8cb-3df439504203\",\"cd6a3b80-3615-4f0d-87a1-a9fc9893ab80\",\"d3811be2-ca5e-4bad-ad38-dd8d0ce919cd\"]}}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "poffin-basic-only-accepted-prefix",
+      "caseId": "poffin-basic-only",
+      "expectedAutomaticPass": true,
+      "sourceReplyHash": "b24e9418fe28a64a095ed7beb3dff6fbadb118ae9542fa73333104f810877c18",
+      "reply": {
+        "id": "control-poffin-basic-only-accepted-prefix",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_589bee8422de484e840571cebab814ef",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"61c96064-1aa0-4d15-8421-f3b0a22f7418\",\"reason\":\"回合抽牌后没有任何效果授权查看牌库顶7张；该查看及其后展示依赖非法信息。应恢复至查看之前，并重洗牌库以消除已知顺序。\",\"evidenceRefs\":[\"61c96064-1aa0-4d15-8421-f3b0a22f7418\",\"cf754aac-d8bf-42ba-afe8-da5a4a5553e9\"],\"proposal\":{\"restoreBeforeEventId\":\"61c96064-1aa0-4d15-8421-f3b0a22f7418\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"A:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_589bee8422de484e840571cebab814ef",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"61c96064-1aa0-4d15-8421-f3b0a22f7418\",\"reason\":\"回合抽牌后没有任何效果授权查看牌库顶7张；该查看及其后展示依赖非法信息。应恢复至查看之前，并重洗牌库以消除已知顺序。\",\"evidenceRefs\":[\"61c96064-1aa0-4d15-8421-f3b0a22f7418\",\"cf754aac-d8bf-42ba-afe8-da5a4a5553e9\"],\"proposal\":{\"restoreBeforeEventId\":\"61c96064-1aa0-4d15-8421-f3b0a22f7418\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"A:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "item-not-attachment-accepted-prefix",
+      "caseId": "item-not-attachment",
+      "expectedAutomaticPass": true,
+      "sourceReplyHash": "5f9b0c6fbadb6f47f0b398a09a328b2e906dce5e8f0554d063c51505ad3390c7",
+      "reply": {
+        "id": "control-item-not-attachment-accepted-prefix",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_619090fb88f64cf59765dde12839d407",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"reason\":\"备战位0实际是含羞苞，并非多龙奇，不拥有侦察指令；该特性宣告及随后的查看、移动均不合法。应恢复至宣告前，并重洗已查看的牌库。\",\"evidenceRefs\":[\"38094b32-2407-49f8-9512-036dd5fccdd7\",\"473596fd-ba13-4e24-9696-9483ba743ac7\"],\"proposal\":{\"restoreBeforeEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"B:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_619090fb88f64cf59765dde12839d407",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"reason\":\"备战位0实际是含羞苞，并非多龙奇，不拥有侦察指令；该特性宣告及随后的查看、移动均不合法。应恢复至宣告前，并重洗已查看的牌库。\",\"evidenceRefs\":[\"38094b32-2407-49f8-9512-036dd5fccdd7\",\"473596fd-ba13-4e24-9696-9483ba743ac7\"],\"proposal\":{\"restoreBeforeEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"B:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "evolution-lineage-accepted-prefix",
+      "caseId": "evolution-lineage",
+      "expectedAutomaticPass": true,
+      "sourceReplyHash": "7700924528544fb1001a951814a4a485c4503aeb9fc80f4158d4d5bcb9668fde",
+      "reply": {
+        "id": "control-evolution-lineage-accepted-prefix",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_efd2764e349a4f379e8aa7c4d75716e5",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"reason\":\"备战区0实际是含羞苞，并非多龙奇，不能使用侦察指令；其后查看牌库及移动均须恢复。另将神奇糖果错误附于含羞苞，亦非合法操作。\",\"evidenceRefs\":[\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"473596fd-ba13-4e24-9696-9483ba743ac7\",\"14f10c35-9dff-45b7-aac1-6e5234935d74\"],\"proposal\":{\"restoreBeforeEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"B:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_efd2764e349a4f379e8aa7c4d75716e5",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"reason\":\"备战区0实际是含羞苞，并非多龙奇，不能使用侦察指令；其后查看牌库及移动均须恢复。另将神奇糖果错误附于含羞苞，亦非合法操作。\",\"evidenceRefs\":[\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"473596fd-ba13-4e24-9696-9483ba743ac7\",\"14f10c35-9dff-45b7-aac1-6e5234935d74\"],\"proposal\":{\"restoreBeforeEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"B:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "stadium-not-pokemon-accepted-prefix",
+      "caseId": "stadium-not-pokemon",
+      "expectedAutomaticPass": true,
+      "sourceReplyHash": "7fd56d546f9e41e7343003858b4e53fda255499a06c7bdd9c219799635aa0ce0",
+      "reply": {
+        "id": "control-stadium-not-pokemon-accepted-prefix",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_63665225f8d34a01bc248e00add0608c",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"reason\":\"备战区0的宝可梦实际为含羞苞，并非多龙奇，不能使用侦察指令；此后查看牌库和后续操作均依赖错误。请求恢复到该宣告前，并重洗已被查看的牌库。\",\"evidenceRefs\":[\"38094b32-2407-49f8-9512-036dd5fccdd7\",\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"473596fd-ba13-4e24-9696-9483ba743ac7\",\"b2f97027-e29f-414b-be16-c0f58ca02af1\"],\"proposal\":{\"restoreBeforeEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"B:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_63665225f8d34a01bc248e00add0608c",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"reason\":\"备战区0的宝可梦实际为含羞苞，并非多龙奇，不能使用侦察指令；此后查看牌库和后续操作均依赖错误。请求恢复到该宣告前，并重洗已被查看的牌库。\",\"evidenceRefs\":[\"38094b32-2407-49f8-9512-036dd5fccdd7\",\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"473596fd-ba13-4e24-9696-9483ba743ac7\",\"b2f97027-e29f-414b-be16-c0f58ca02af1\"],\"proposal\":{\"restoreBeforeEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"B:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "invalid-container-retry-accepted-prefix",
+      "caseId": "invalid-container-retry",
+      "expectedAutomaticPass": true,
+      "sourceReplyHash": "cb21fb77f263268038b7389596c7cfae78ef04ea4038fcf610934c993414b970",
+      "reply": {
+        "id": "control-invalid-container-retry-accepted-prefix",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_1794c552ff6a4c4b92e3ec586a827b16",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"reason\":\"我错误地宣告含羞苞为多龙奇并使用其不存在的特性，随后查看牌库并执行了多项非法操作；应恢复至该宣告之前，并重洗已查看的牌库。\",\"evidenceRefs\":[\"38094b32-2407-49f8-9512-036dd5fccdd7\",\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"473596fd-ba13-4e24-9696-9483ba743ac7\",\"b2f97027-e29f-414b-be16-c0f58ca02af1\",\"e91f79d4-7b0d-45fb-b201-a7f635a4a31e\"],\"proposal\":{\"restoreBeforeEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"B:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_1794c552ff6a4c4b92e3ec586a827b16",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\":[{\"tool\":\"object\",\"arguments\":{\"targetEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"reason\":\"我错误地宣告含羞苞为多龙奇并使用其不存在的特性，随后查看牌库并执行了多项非法操作；应恢复至该宣告之前，并重洗已查看的牌库。\",\"evidenceRefs\":[\"38094b32-2407-49f8-9512-036dd5fccdd7\",\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"473596fd-ba13-4e24-9696-9483ba743ac7\",\"b2f97027-e29f-414b-be16-c0f58ca02af1\",\"e91f79d4-7b0d-45fb-b201-a7f635a4a31e\"],\"proposal\":{\"restoreBeforeEventId\":\"2e5fd874-1e17-49d5-9345-dfcf59579798\",\"shuffles\":[{\"container\":{\"kind\":\"zone\",\"zoneId\":\"B:deck\"},\"range\":{\"mode\":\"all\"}}]}}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "poffin-basic-only-historical-error",
+      "caseId": "poffin-basic-only",
+      "expectedAutomaticPass": false,
+      "sourceReplyHash": "aea7d783e27a8513f7da7536dbcb67efce7bb518f372b5389d187ae77abb6155",
+      "reply": {
+        "id": "control-poffin-basic-only-historical-error",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_ed71b47a63e244cd81a05320f1d9fa5d",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"create_group\", \"arguments\": {\"destination\": \"A:bench/1\"}}, {\"tool\": \"move_known\", \"arguments\": {\"zoneId\": \"A:deck\", \"name\": \"多龙梅西亚\", \"cardRef\": \"c_e9ee6620386fc557\", \"destination\": \"A:bench/1/stack/0\"}}, {\"tool\": \"create_group\", \"arguments\": {\"destination\": \"A:bench/2\"}}, {\"tool\": \"move_known\", \"arguments\": {\"zoneId\": \"A:deck\", \"name\": \"多龙奇\", \"cardRef\": \"c_7c6211a3c2292103\", \"destination\": \"A:bench/2/stack/0\"}}, {\"tool\": \"move\", \"arguments\": {\"source\": \"A:hand/2\", \"destination\": \"A:discard/0\"}}, {\"tool\": \"shuffle\", \"arguments\": {\"selection\": \"A:deck\"}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_ed71b47a63e244cd81a05320f1d9fa5d",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"create_group\", \"arguments\": {\"destination\": \"A:bench/1\"}}, {\"tool\": \"move_known\", \"arguments\": {\"zoneId\": \"A:deck\", \"name\": \"多龙梅西亚\", \"cardRef\": \"c_e9ee6620386fc557\", \"destination\": \"A:bench/1/stack/0\"}}, {\"tool\": \"create_group\", \"arguments\": {\"destination\": \"A:bench/2\"}}, {\"tool\": \"move_known\", \"arguments\": {\"zoneId\": \"A:deck\", \"name\": \"多龙奇\", \"cardRef\": \"c_7c6211a3c2292103\", \"destination\": \"A:bench/2/stack/0\"}}, {\"tool\": \"move\", \"arguments\": {\"source\": \"A:hand/2\", \"destination\": \"A:discard/0\"}}, {\"tool\": \"shuffle\", \"arguments\": {\"selection\": \"A:deck\"}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "item-not-attachment-historical-error",
+      "caseId": "item-not-attachment",
+      "expectedAutomaticPass": false,
+      "sourceReplyHash": "3551c8fd2036b10f6380e0e252c5de065f68e808d6f5913e68c1a53cf1cd3998",
+      "reply": {
+        "id": "control-item-not-attachment-historical-error",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_45f482f3fef54e82942b7c387bc658c3",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"move\", \"arguments\": {\"source\": \"B:hand/4\", \"destination\": \"B:active/0/attached/end\"}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_45f482f3fef54e82942b7c387bc658c3",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"move\", \"arguments\": {\"source\": \"B:hand/4\", \"destination\": \"B:active/0/attached/end\"}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "evolution-lineage-historical-error",
+      "caseId": "evolution-lineage",
+      "expectedAutomaticPass": false,
+      "sourceReplyHash": "2c04ae2cbd09ce17b748b280a4bf79e3bdc588a2e001a890f4118ab0b121be2a",
+      "reply": {
+        "id": "control-evolution-lineage-historical-error",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_d23e5f258de043f2880a93a9e032ca03",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"declare\", \"arguments\": {\"text\": \"使用「神奇糖果」，将手牌多龙巴鲁托ex放于备战区第0位多龙奇身上，跳过1阶进化进行进化。\"}}, {\"tool\": \"move\", \"arguments\": {\"source\": \"B:hand/1\", \"destination\": \"B:bench/0/stack/end\"}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_d23e5f258de043f2880a93a9e032ca03",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"declare\", \"arguments\": {\"text\": \"使用「神奇糖果」，将手牌多龙巴鲁托ex放于备战区第0位多龙奇身上，跳过1阶进化进行进化。\"}}, {\"tool\": \"move\", \"arguments\": {\"source\": \"B:hand/1\", \"destination\": \"B:bench/0/stack/end\"}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "stadium-not-pokemon-historical-error",
+      "caseId": "stadium-not-pokemon",
+      "expectedAutomaticPass": false,
+      "sourceReplyHash": "9fa26838c0e21e93749100576b1ba6d8574c4626cdf8bb3c0e1e2b19f13ab3eb",
+      "reply": {
+        "id": "control-stadium-not-pokemon-historical-error",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_016cb10cc0e44d7bb176e29a407c2662",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"move\", \"arguments\": {\"source\": \"B:hand/3\", \"destination\": \"B:hand/0\"}}, {\"tool\": \"move\", \"arguments\": {\"source\": \"B:active/0\", \"destination\": \"stadium/0\"}}, {\"tool\": \"declare\", \"arguments\": {\"text\": \"使用支援者「赤松」：从牌库选择属性各不相同的基本能量最多2张，其中1张加入手牌，剩余附着于自己宝可梦身上，然后重洗牌库。\"}}, {\"tool\": \"look\", \"arguments\": {\"selection\": {\"at\": \"B:deck\", \"start\": 0, \"count\": 36}}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_016cb10cc0e44d7bb176e29a407c2662",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"move\", \"arguments\": {\"source\": \"B:hand/3\", \"destination\": \"B:hand/0\"}}, {\"tool\": \"move\", \"arguments\": {\"source\": \"B:active/0\", \"destination\": \"stadium/0\"}}, {\"tool\": \"declare\", \"arguments\": {\"text\": \"使用支援者「赤松」：从牌库选择属性各不相同的基本能量最多2张，其中1张加入手牌，剩余附着于自己宝可梦身上，然后重洗牌库。\"}}, {\"tool\": \"look\", \"arguments\": {\"selection\": {\"at\": \"B:deck\", \"start\": 0, \"count\": 36}}}]}"
+          }
+        ],
+        "usage": null
+      }
+    },
+    {
+      "id": "invalid-container-retry-historical-error",
+      "caseId": "invalid-container-retry",
+      "expectedAutomaticPass": false,
+      "sourceReplyHash": "f1461d0b417935e269fb26b6a4b4c6e669c2900f0dc16b0912b16a6b68ab5724",
+      "reply": {
+        "id": "control-invalid-container-retry-historical-error",
+        "model": "recorded-control",
+        "calls": [
+          {
+            "callId": "call_3709aaa493444229baaf0b13dc4a7049",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"move\", \"arguments\": {\"source\": \"B:deck/3\", \"destination\": \"B:bench/1/attached/end\"}}, {\"tool\": \"show\", \"arguments\": {\"selection\": {\"at\": \"B:deck\", \"start\": 3, \"count\": 1}}}, {\"tool\": \"move\", \"arguments\": {\"source\": \"B:deck/3\", \"destination\": \"B:hand/0\"}}, {\"tool\": \"shuffle\", \"arguments\": {\"selection\": \"B:deck\"}}]}"
+          }
+        ],
+        "output": [
+          {
+            "type": "function_call",
+            "call_id": "call_3709aaa493444229baaf0b13dc4a7049",
+            "name": "execute_sequence",
+            "arguments": "{\"actions\": [{\"tool\": \"move\", \"arguments\": {\"source\": \"B:deck/3\", \"destination\": \"B:bench/1/attached/end\"}}, {\"tool\": \"show\", \"arguments\": {\"selection\": {\"at\": \"B:deck\", \"start\": 3, \"count\": 1}}}, {\"tool\": \"move\", \"arguments\": {\"source\": \"B:deck/3\", \"destination\": \"B:hand/0\"}}, {\"tool\": \"shuffle\", \"arguments\": {\"selection\": \"B:deck\"}}]}"
+          }
+        ],
+        "usage": null
+      }
+    }
+  ]
+}

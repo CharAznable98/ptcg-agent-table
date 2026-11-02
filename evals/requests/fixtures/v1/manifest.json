@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-11-02T10:16:07.069Z",
+  "publication": {
+    "format": "repository-v1",
+    "sourceManifestHash": "a0efd4cdc668e66368eb89296d0ffd80ca33d548bf9b2c360a8b287626638a2f",
+    "changes": [
+      "Omit original provider wire, encrypted restore items and historical response envelopes.",
+      "Remove credential references from replay metadata; preserve game state and event history.",
+      "Store replay journals with lossless Brotli compression."
+    ],
+    "modelInputsUnchanged": true
+  },
+  "files": {
+    "turn-start-draw.json": "2540a519d2681ba688170d36bb5222db0cb67f78e48b0ee254887bd66040ec73",
+    "viewed-top-two.json": "f71a06ca6497b99702161ba3d23d502ceda24a7d8220b437782ab54ff0d0ba83",
+    "resistance-dispute.json": "236d30c056407cbde9b51d7e2a2eae79df3393c00d684db30e58e5f9086911ab",
+    "poffin-basic-only.json": "53c9c499d426cc7ab1dd63712bcd1c6bd59e17664481fb479f8ff30b16b2b93d",
+    "item-not-attachment.json": "42230de3ab0a587bf7cf175c7bac25ece39dfdbeaa1fe255d51148be4c8bd06a",
+    "evolution-lineage.json": "6595e6bac2e7d2fe2e3e3b08d1f4004814cf493b4811147f686e94560eaeb93f",
+    "stadium-not-pokemon.json": "75f8225611e55a58698bfe9635a34e4ab10eac0e711152317183a57af81e8087",
+    "invalid-container-retry.json": "dcd4e8e9e0eb187b3c613b8d6ea64beb2bffa031cf1cfca9a3cc1c3d11775c01",
+    "controls.json": "d174dc1e5da112ba86a4dad91b8e2721520bba81d71fbae2a73be69d3a9cc036",
+    "journal-1e46c214-11c1-45d0-b608-360263a7b990.jsonl.br": "057a3f078a7b0b974ce203c7ad6ece7576432b3d11d57c95c4701116d20c7c33",
+    "journal-68c8f71e-544f-494b-b291-cb024b1012b6.jsonl.br": "fd1109b12f599da54725d3db56e06b008ceaf647f4236667eda5b07767f64bab"
+  },
+  "cases": [
+    "turn-start-draw.json",
+    "viewed-top-two.json",
+    "resistance-dispute.json",
+    "poffin-basic-only.json",
+    "item-not-attachment.json",
+    "evolution-lineage.json",
+    "stadium-not-pokemon.json",
+    "invalid-container-retry.json"
+  ]
+}

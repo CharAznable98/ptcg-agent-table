@@ -197,7 +197,7 @@ export class AgentRuntime {
           activeBytes: activeContextBytes(session), wireItems: session.context!.wire!.items.length, rawMessagesRetained: session.messages.length,
           observationOffset: session.context!.observationOffset, toolOffset: session.context!.toolOffset });
         const reply = await this.#generateForSession(session, { role: 'player', sessionId: session.sessionId, instructions: session.instructions,
-          input, tools, ...(signal ? { signal } : {}) });
+          input, tools, ...(tools.length === 1 ? { toolChoice: tools[0]!.name } : {}), ...(signal ? { signal } : {}) });
         session.context!.deliveredMessages = session.messages.length;
         session.context!.deliveredObservations = session.observations.length;
         session.context!.deliveredTools = session.toolHistory.length;

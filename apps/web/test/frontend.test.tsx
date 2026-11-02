@@ -674,7 +674,9 @@ describe("开局、异议与配置", () => {
       Promise.resolve(
         new Response(
           JSON.stringify(
-            url.endsWith("/model")
+            url.endsWith("/models")
+              ? { models: [{ id: "gpt-6.1-terra" }] }
+              : url.endsWith("/model")
               ? {
                   schemaVersion: 1,
                   model: "gpt-6.1-terra",
