@@ -22,7 +22,7 @@ export interface ModelRequest {
   instructions: string;
   input: ModelItem[];
   tools: ToolDefinition[];
-  /** 专用结构化任务固定为一个函数，玩家则由模型自行选择。 */
+  /** 专用结构化任务或唯一玩家工具固定函数；多工具时由模型选择。 */
   toolChoice?: string;
   signal?: AbortSignal;
 }

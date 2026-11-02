@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   CardData,
   DeckData,
@@ -791,10 +791,12 @@ function OpponentEditor({
     record === "new" ? 0 : (record.strategies.at(-1)?.version ?? 0),
   );
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
   return (
-    <Modal title="AI 对手与长期策略" close={close} wide>
+    <Modal title="AI 对手与长期策略" close={close} wide busy={busy}>
       <ErrorNote value={error} />
-      <div className="form-grid">
+      <fieldset className="form-grid" disabled={busy}>
         <div>
           <Field label="对手名称">
             <input
@@ -864,22 +866,37 @@ function OpponentEditor({
             </>
           )}
         </div>
-      </div>
+      </fieldset>
+      {busy && (
+        <div className="busy opponent-editor-busy" role="status">
+          <span aria-hidden="true" />
+          {record === "new" ? "正在生成初始策略…" : "正在保存…"}
+        </div>
+      )}
       <footer className="modal-footer">
-        <Button onClick={close}>取消</Button>
+        <Button onClick={close} disabled={busy}>
+          取消
+        </Button>
         <Button
           kind="primary"
-          onClick={() => {
+          disabled={busy}
+          onClick={async () => {
+            if (submitting.current) return;
             try {
-              void save({ name, deck: parseDeck(deck), strategy }).catch(
-                (error) => setError(error.message),
-              );
-            } catch {
-              setError("卡组 JSON 格式无效");
+              const value = { name, deck: parseDeck(deck), strategy };
+              submitting.current = true;
+              setBusy(true);
+              setError("");
+              await save(value);
+            } catch (error) {
+              setError(error instanceof SyntaxError ? "卡组 JSON 格式无效" : (error as Error).message);
+            } finally {
+              submitting.current = false;
+              setBusy(false);
             }
           }}
         >
-          保存 AI 对手
+          {busy ? (record === "new" ? "创建中…" : "保存中…") : "保存 AI 对手"}
         </Button>
       </footer>
     </Modal>

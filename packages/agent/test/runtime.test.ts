@@ -51,6 +51,34 @@ test('模型只选择工具，身份、请求 ID 和版本由运行模块绑定'
   assert.equal(request.playerId, 'A'); assert.equal(request.revision, 0); assert.ok(request.requestId.length > 20);
 });
 
+test('唯一批量工具明确请求函数调用，避免纯文字答复耗尽重试而没有执行', async () => {
+  const model = new ScriptedModel(request => request.toolChoice === 'execute_sequence'
+    ? call('execute_sequence', { actions: [{ tool: 'move', arguments: { index: 0 } }] })
+    : { id: 'text-only', model: 'test', output: [{ role: 'assistant', content: '操作计划' }], calls: [], usage: null });
+  const { runtime, port } = await setup(model);
+  assert.deepEqual(await runtime.activate('m', 'A'), { status: 'finished', decisions: 1 });
+  assert.equal((port as Port).calls.length, 1);
+  assert.equal(model.requests.length, 1);
+});
+
+test('单步模式唯一原子工具明确调用；多个原子工具仍由模型选择', async () => {
+  for (const multiple of [false, true]) {
+    const port = new Port();
+    const observe = port.observe.bind(port);
+    port.observe = async (...args) => {
+      const frame = await observe(...args);
+      return multiple ? { ...frame, tools: [...frame.tools, { ...tool, name: 'other_move' }] } : frame;
+    };
+    const model = new ScriptedModel(request => request.toolChoice === (multiple ? undefined : 'move')
+      ? call('move', { index: 0 })
+      : { id: 'text-only', model: 'test', output: [{ role: 'assistant', content: '操作计划' }], calls: [], usage: null });
+    const runtime = new AgentRuntime({ model, match: port, store: new MemorySessionStore(), trace: new Trace(), prompts: await loadPrompts(), limits: { maxActionsPerDecision: 1 } });
+    await runtime.create({ matchId: 'm', playerId: 'A', deck: {}, strategy: { version: 1, content: '' }, rules: '' });
+    assert.deepEqual(await runtime.activate('m', 'A'), { status: 'finished', decisions: 1 });
+    assert.equal(port.calls.length, 1);
+  }
+});
+
 test('等待期间短暂展示持久排队，失败重启后仍进入下一次实际模型请求', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'ptcg-observation-delivery-'));
   const store = new FileSessionStore(directory);

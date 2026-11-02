@@ -6,3 +6,4 @@ export * from './strategy.ts';
 export * from './evaluation.ts';
 export * from './known-card.ts';
 export * from './human-actions.ts';
+export * from './model-settings.ts';

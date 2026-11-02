@@ -19,7 +19,7 @@ npm run validate:agent
 
 ## 2. 模型配置
 
-后端配置样例见[agent.example.json](../../system/agent.example.json)。`loadModelConfig` 验证 JSON，`createModel` 创建统一 `ModelGateway`。模型与认证引用由服务端单独配置。
+后端配置样例见[agent.example.json](../../system/agent.example.json)。`loadModelConfig` 验证 JSON，`createModel` 创建统一 `ModelGateway`。完整应用在「系统配置 → 模型连接」中填写 API Key、选择模型及思考强度；共享配置结构位于[model-settings.ts](../protocol/src/model-settings.ts)。
 
 本地模式 `connection.kind=local_codex_credentials` 每次请求读取凭证文件，默认使用 `CODEX_HOME` 或 `~/.codex` 下的 `auth.json`，可用绝对 `authFile` 指定。旧版 Codex 登录令牌使用配套的 Codex Responses HTTP 协议；若部署持有另一授权流程的令牌，可明确配置相匹配的 `baseUrl`。模型请求及提示词、工具、会话和记忆由本模块管理。
 
@@ -36,13 +36,15 @@ OpenAI 兼容模式的配置示例：
   "connection": {
     "kind": "openai_compatible",
     "baseUrl": "https://example.com/v1",
-    "apiKeyEnv": "PTCG_MODEL_API_KEY",
+    "apiKeyFile": "/path/to/data/model-credentials/key.json",
     "protocol": "chat_completions"
   }
 }
 ```
 
-`protocol` 可选 `responses` 或 `chat_completions`；服务须支持配置的函数工具与模型参数。认证值从引用的环境变量取得。请求关闭跨地址重定向；Responses 流以 `response.completed` 标记完成。调用轨迹保存脱敏后的请求和响应正文。
+`protocol` 可选 `responses` 或 `chat_completions`；服务须支持配置的函数工具与模型参数。网页提交的密钥由服务保存为权限 `0600` 的本机 JSON 文件（`{ "apiKey": "…" }`），配置和对局快照只保存 `apiKeyFile` 引用。已有 `apiKeyEnv` 环境变量引用继续可用。独立使用模块时，也可通过 `createModel` 第四个参数传入 `DirectApiKeyCredentials`。请求关闭跨地址重定向；Responses 流以 `response.completed` 标记完成。调用轨迹保存脱敏后的请求和响应正文。
+
+`reasoningEffort` 使用提供方声明的档位标识，允许小写字母开头、最长 64 字符的字母、数字、下划线和连字符组合；`default` 是本项目保留值，表示省略思考参数，其他值按所选协议发送。设置页从模型列表读取支持档位和默认值，也兼容本地模型缓存；常见档位使用中文标签，其他档位显示原标识。具体支持范围由提供方决定；真实 Agent 验证仍固定使用 `gpt-6.1-terra`、`medium`、非 fast。
 
 流式片段默认按 64 KiB 或 100 毫秒批量同步写盘；请求开始、完整返回、失败和工具记录等其他事件是持久屏障，返回前同步保存全部前缀。写入失败会阻止后续关键记录成功返回，完整模型返回尚未持久化时不会执行牌桌操作。进程强制退出可能丢失尚在缓冲区的末尾流片段，原请求与已经返回的关键记录保持持久保证；独立使用 `JsonlTrace` 时可调用 `flush()` 等待清空。
 
@@ -67,6 +69,8 @@ OpenAI 兼容模式的配置示例：
 AI 对战与人类操作代理共用卡文／事件目录和快照差量编码；各自保留独立的策略、工具权限与执行循环。
 
 每次决策可以调用单个工具，也可以通过 `execute_sequence` 提交最多 16 个操作。宿主按顺序执行，每步使用实际新版本和独立请求 ID；仅当 `ToolReceipt.continuation=continue` 时继续。抽牌、开牌、随机、交权、非机械的流程变化或拒绝会停止后缀；仅进入检查阶段且操作权未变时，已经确定的检查和交还下一方步骤可同批继续，反馈列明已完成结果和未执行项。序列不是事务，成功部分不会回滚；取消及断连后保存序列进度，待定请求沿用原 ID 重试。单步模式同时将 `maxActionsPerDecision`、`maxToolCallsPerActivation` 设为 1，恢复旧序列也只处理一步。
+
+玩家请求只有一个工具定义时，通过 `tool_choice` 明确指定该函数，避免模型只输出文字而没有提交操作；批量模式通常指定 `execute_sequence`。多个原子工具的单步模式仍由模型选择，参数与实际执行继续按原有权限和版本校验。
 
 每个压缩段只装配一次固定卡组／启用策略和 snapshot 基准；后续用 snapshotUpdates 路径替换重建当前牌桌。已发送消息与定义只追加，成功压缩才换段，断连重试不重写旧前缀。成功玩家推理已消费的可压缩历史超过 80,000 UTF-8 字节时，压缩器只接收上次成功压缩后的已消费观察／工具记录与已有摘要；原始记录完整留存。尚未消费的新输入先完整交付一次，不因其体积提前压缩；每段当前快照基准与旧摘要作为固定成本单独计量。实际动态输入可暂时超过该触发值，轨迹记录压缩前后大小、可压缩量和覆盖量。压缩只覆盖成功玩家推理已消费的观察和工具前缀，`memoryCoverage` 标明该水位；已摘要前缀不再重放。尚未被一次成功玩家推理消费的消息完整保护，失败和重建不会提前移除工具结果。`recentHistoryBytes` 仅为旧配置兼容保留。摘要正文与引用共同受字节预算限制。旧上下文在首次模型决策前先摘要历史快照中的已知事实，避免迁移时丢失曾见过的信息。
 
@@ -93,6 +97,25 @@ Responses 工具参数流会检查不可能合法的 JSON 前缀，并检测长�
 `npm run validate:throughput` 用真实 Terra、medium、非 fast 在独立 `MatchRuntime` 中验证 16 个合成标记操作、两次阶段切换与两次增量压缩，最多 8 次模型调用，总时限 120 秒。源码／规则散列、提示词快照、模型轨迹与结果写入新的 `artifacts/agent-validation/<run-id>/`。
 
 ## 5. Token 与缓存统计
+
+### 固定单请求评测
+
+已固定的 8 题见[问题集 v1](../../evals/requests/README.md)。所需输入、卡文、卡组状态和回放记录均随仓库保存。`npm run eval:requests:verify` 只读校验数据包；运行时使用 `--bank evals/requests/v1.json` 绑定题目、输入及评分版本。协议、执行、规则正确性和耗时分别记录；自动检查之外的规则与行动完整性按逐题清单复核。
+
+`npm run eval:requests` 从历史对局的 `model_started` / `model_finished` 抽取完整请求和对应的历史状态，在隔离目录评测不同模型。选样 JSON 每项包含 `id`、`title`、`matchDir`、`callId`、`rubric`、`ruleRefs`、`oracle`；评分依据在抽取时冻结。内置检查支持回合开始抽牌（`turn_draw`）、已查看卡牌的选取与归底（`top_partition`）、指定异议回应及论证要点（`dispute_response`）。
+
+`state_safety` 可声明场景中的新增异常检查，如检索对象的阶段与 HP 条件、物品附着、竞技场卡牌组、进化来源和重复无效操作。它比较候选执行前后的新增问题，不把输入中已有的错误算成新回答造成；通过只表示未触发声明的检查，不代表修好了既有场面。该能力仅用于离线评测，不改变正式对局的执行校验。
+
+```sh
+npm run eval:requests -- extract path/to/selections.json --output path/to/new-suite
+npm run eval:requests -- run evals/requests/fixtures/v1 --bank evals/requests/v1.json --matrix path/to/models.json --output path/to/new-results --repeats 1 --tool-choice forced
+```
+
+矩阵 JSON 为 `[{ "id": "模型配置标识", "configFile": "模型配置文件.json" }]`，文件路径相对矩阵所在目录。配置格式沿用 `ModelConfig`，凭证只保存引用。`--tool-choice` 可选 `forced` 或 `auto`，用于单独比较提交方式；`--timeout-ms` 默认 120000。每次独立请求关闭 HTTP 重试，报告原始耗时、token、协议校验、隔离执行和场景评分。
+
+模型共享冻结的牌桌输入、提示词与工具定义，提供方专属的思考恢复项在 `portable-v1` 输入中移除，变换和来源散列保留。每个候选回复只执行一次有效前缀；未执行后缀不计成功。历史回答仅供核对，合法选牌可以不同。固定问题集的全部运行材料保存在 `evals/requests/fixtures/v1/`，模型和凭证在运行时提供。现有规则检查只覆盖样本声明的事实，具体策略质量另行复核。
+
+执行起点按请求修订号及 `model_started` 之前的工具回执定位，并记录 `source.historyCutoff`。同一修订号下，保留已收到的失败反馈，排除未来的拒绝与运行状态；不能用该修订号的最后一条记录作为起点。
 
 本地凭证连接默认发送稳定的会话级 `prompt_cache_key`，按玩家会话及角色分组，复盘分页沿用同一组。OpenAI 兼容连接默认关闭该参数。系统模型配置可设置 `cacheKeyStrategy: "session"` 开启，或 `"disabled"` 关闭；key 由会话和角色散列生成，在各次决策、重试、回合和分页中保持稳定。缓存命中情况通过模型返回的 usage 统计。
 
