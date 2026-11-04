@@ -108,15 +108,23 @@ function functionTools(request: ModelRequest, chat: boolean): unknown[] {
 /** 将项目保存的 Responses 项转为兼容接口消息，不改变席位资料。 */
 export function toChatMessages(instructions: string, input: ModelItem[]): ModelItem[] {
   const messages: ModelItem[] = [{ role: 'system', content: instructions }];
+  let assistant: ModelItem | null = null;
   for (const item of input) {
-    if (item.type === 'function_call') {
-      messages.push({ role: 'assistant', content: null, tool_calls: [{ id: item.call_id, type: 'function', function: { name: item.name, arguments: item.arguments } }] });
+    if (item.type === 'reasoning' && item.format === 'chat-reasoning-v1' && typeof item.reasoning_content === 'string') {
+      assistant = { role: 'assistant', content: null, reasoning_content: item.reasoning_content };
+      messages.push(assistant);
+    } else if (item.type === 'function_call') {
+      if (!assistant) { assistant = { role: 'assistant', content: null }; messages.push(assistant); }
+      const calls = (assistant.tool_calls ??= []) as ModelItem[];
+      calls.push({ id: item.call_id, type: 'function', function: { name: item.name, arguments: item.arguments } });
     } else if (item.type === 'function_call_output') {
+      assistant = null;
       messages.push({ role: 'tool', tool_call_id: item.call_id, content: item.output });
     } else if (typeof item.role === 'string') {
       let content = item.content;
       if (Array.isArray(content)) content = content.map(c => typeof c === 'object' && c && 'text' in c ? String(c.text) : '').join('');
-      messages.push({ role: item.role, content });
+      if (item.role === 'assistant' && assistant && assistant.content === null) assistant.content = content;
+      else { assistant = null; messages.push({ role: item.role, content }); }
     }
     // reasoning 密文属于提供方专属恢复项；不能假装是公开文字跨协议传递。
   }
@@ -125,17 +133,21 @@ export function toChatMessages(instructions: string, input: ModelItem[]): ModelI
 
 function wireBody(options: HttpModelOptions, request: ModelRequest): Record<string, unknown> {
   const chat = options.protocol === 'chat_completions';
-  const choice = request.toolChoice
+  const deepseekChat = chat && new URL(options.baseUrl).hostname === 'api.deepseek.com';
+  // 官方 DeepSeek 开启思考后拒绝指定函数；调用结果仍由运行器检查数量和权限。
+  const canForceTool = new URL(options.baseUrl).hostname !== 'api.deepseek.com' || options.reasoningEffort === 'none';
+  const choice = request.toolChoice && canForceTool
     ? chat ? { type: 'function', function: { name: request.toolChoice } } : { type: 'function', name: request.toolChoice }
     : 'auto';
   const session = request.role === 'summary' && request.sessionId.startsWith('summary:') ? request.sessionId.split(':').slice(0, 2).join(':') : request.sessionId;
   const cache = options.cacheKeyStrategy === 'session' ? { prompt_cache_key: 'ptcg:' + createHash('sha256').update(JSON.stringify([request.role, session])).digest('hex').slice(0, 48) } : {};
   const common = { model: options.model, tools: functionTools(request, chat), tool_choice: choice, parallel_tool_calls: false, service_tier: 'default', ...cache };
-  const effort = options.reasoningEffort === 'default' ? {} : chat
+  const effort = deepseekChat && options.reasoningEffort === 'none' ? { thinking: { type: 'disabled' } }
+    : options.reasoningEffort === 'default' ? {} : chat
     ? { reasoning_effort: options.reasoningEffort }
     : { reasoning: { effort: options.reasoningEffort } };
   return chat
-    ? { ...common, messages: toChatMessages(request.instructions, request.input), ...effort, stream: false }
+    ? { ...common, messages: toChatMessages(request.instructions, request.input), ...(deepseekChat && options.reasoningEffort !== 'none' && options.reasoningEffort !== 'default' ? { thinking: { type: 'enabled' } } : {}), ...effort, stream: false }
     : { ...common, instructions: request.instructions, input: request.input, ...effort, stream: true, store: false };
 }
 
@@ -182,11 +194,12 @@ export async function consumeResponses(response: Response, onEvent: (event: Mode
 
 function normalizeReply(raw: ModelItem, chat: boolean): ModelReply {
   if (chat) {
-    const choices = raw.choices as { finish_reason?: string; message?: { content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] | undefined;
+    const choices = raw.choices as { finish_reason?: string; message?: { content?: string; reasoning_content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] | undefined;
     const choice = choices?.[0];
     if (!choice?.message || !['tool_calls', 'stop'].includes(choice.finish_reason ?? '')) throw new ModelError('INFERENCE_INCOMPLETE', '兼容接口没有完整完成推理', false);
     const calls = (choice.message.tool_calls ?? []).map(c => ({ callId: c.id, name: c.function.name, arguments: c.function.arguments }));
     const output: ModelItem[] = calls.map(c => ({ type: 'function_call', call_id: c.callId, name: c.name, arguments: c.arguments }));
+    if (choice.message.reasoning_content) output.unshift({ type: 'reasoning', format: 'chat-reasoning-v1', reasoning_content: choice.message.reasoning_content });
     if (choice.message.content) output.push({ role: 'assistant', content: choice.message.content });
     return { id: String(raw.id), model: String(raw.model), output, calls, usage: raw.usage as Record<string, unknown> ?? null };
   }

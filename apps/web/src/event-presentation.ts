@@ -265,7 +265,12 @@ export function presentEvent(
         : typeof target.zoneId === "string"
           ? [{ zoneId: target.zoneId, index: 0 }]
           : [];
-      if (field.key === "damageCounters") {
+      if (field.key === "slotCount") {
+        const zoneId = string(target.zoneId);
+        const previousCount = number(result.previousCount) ?? before?.zones.find((zone) => zone.id === zoneId)?.items.length;
+        const count = number(result.count) ?? after?.zones.find((zone) => zone.id === zoneId)?.items.length ?? number(field.value);
+        base.title = `${name}槽位：${previousCount === undefined ? "" : `${previousCount} → `}${count ?? "已调整"}`;
+      } else if (field.key === "damageCounters") {
         const next = (number(field.value) ?? 0) * 10;
         base.title = `${name}累计伤害：${old?.kind === "group" ? `${old.state.damageCounters * 10} → ` : ""}${next}`;
       } else if (field.key === "specialConditions") {

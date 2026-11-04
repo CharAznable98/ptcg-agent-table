@@ -57,6 +57,19 @@ function InspectorHarness() {
 }
 
 describe("牌桌卡牌总览与详情", () => {
+  it("区域槽位数变化后更新数量与可操作落点，不保留被收起的槽位", () => {
+    const zone: ZoneView = { id: "A:bench", kind: "bench", playerId: "A", layout: "slots", items: Array(5).fill(null), defaultVisibility: { mode: "public" } };
+    const props = { selected: [], onSelect: vi.fn(), onInspect: vi.fn(), onDestination: vi.fn(), interactive: true };
+    const { rerender } = render(<Zone zone={zone} {...props} />);
+    for (const count of [5, 8, 3, 0]) {
+      rerender(<Zone zone={{ ...zone, items: Array(count).fill(null) }} {...props} />);
+      const region = screen.getByRole("region", { name: "A备战区" });
+      expect(within(region).getByText(`0 / ${count}`)).toBeInTheDocument();
+      expect(region.querySelectorAll(".empty-slot")).toHaveLength(count);
+      if (count) fireEvent.click(within(region).getByRole("button", { name: `备战区第${count}位作为目标` }));
+    }
+    expect(props.onDestination.mock.calls).toEqual([["A:bench", 4], ["A:bench", 7], ["A:bench", 2]]);
+  });
   it("多叠牌角标与三种状态、多附着信息均可读取，不挤入基本数值", () => {
     const rich = structuredClone(group);
     rich.stack.push({ ...structuredClone(member), position: { ...rich.position, member: { relation: "stack", index: 1 } } }, { ...structuredClone(member), position: { ...rich.position, member: { relation: "stack", index: 2 } } });

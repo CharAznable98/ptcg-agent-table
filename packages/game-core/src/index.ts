@@ -239,10 +239,19 @@ export function executeCore(input: GameState, command: CoreCommand, actor: Actor
     }
     case 'set_state': {
       const field = command.field;
+      if (field.key === 'slotCount' && command.target.kind !== 'zone') fail('INVALID_FIELD', '槽位数只能用于区域');
       let target: Record<string, unknown>, kind: string = command.target.kind;
       if (command.target.kind === 'zone') {
-        if (field.key !== 'visibility' || field.value === null) fail('INVALID_FIELD', '区域仅支持设置非空默认可见范围');
-        zoneAt(state, command.target.zoneId).defaultVisibility = clone(field.value);
+        const zone = zoneAt(state, command.target.zoneId);
+        if (field.key === 'slotCount') {
+          if (zone.contents.layout !== 'slots') fail('SLOT_LAYOUT_REQUIRED', '只有槽位布局区域可以调整槽位数');
+          const previousCount = zone.contents.items.length;
+          if (zone.contents.items.slice(field.value).some(Boolean)) fail('SLOT_NOT_EMPTY', '缩小区域前须先移走被移除槽位中的对象');
+          zone.contents.items = Array.from({ length: field.value }, (_, index) => zone.contents.items[index] ?? null);
+          changed = previousCount !== field.value; result = { key: field.key, previousCount, count: field.value }; break;
+        }
+        if (field.key !== 'visibility' || field.value === null) fail('INVALID_FIELD', '区域仅支持调整槽位数或设置非空默认可见范围');
+        zone.defaultVisibility = clone(field.value);
         changed = !eq(state, input); result = { key: field.key }; break;
       } else if (command.target.kind === 'player') target = { markers: state.playerMarkers[command.target.playerId] };
       else {

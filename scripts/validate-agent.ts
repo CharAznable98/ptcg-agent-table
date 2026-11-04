@@ -198,7 +198,13 @@ try {
   const realInferences = finishes.filter(e => (e.response as Record<string, unknown>).status === 'completed');
   const recallContext = (await store.load('rollback-context', 'A'))!;
   const nextMatchRequest = starts.find(e => e.sessionId === recallContext.sessionId && e.role === 'player')?.request as { input: ModelItem[] };
-  assert.equal(JSON.parse(String(nextMatchRequest.input[0]!.content)).initialStrategy.version, 2, '最新版策略须实际送入下一局的模型输入');
+  const deliveredStrategy = nextMatchRequest.input.flatMap(item => {
+    if (item.role !== 'user' || typeof item.content !== 'string') return [];
+    try { const value = JSON.parse(item.content); return value?.initialStrategy ? [value.initialStrategy] : []; }
+    catch { return []; }
+  });
+  assert.equal(deliveredStrategy.length, 1, '策略资料须在实际请求中唯一出现');
+  assert.equal(deliveredStrategy[0].version, 2, '最新版策略须实际送入下一局的模型输入');
   for (const [path, hash] of Object.entries(sourceHashes)) assert.equal(createHash('sha256').update(await readFile(join(root, path))).digest('hex'), hash, '验证期间不得改变运行代码');
   const realInferenceRoleCounts = Object.fromEntries(['player', 'judge', 'summary', 'compactor'].map(role => [role, realInferences.filter(e => e.role === role).length]));
   await passed('所有真实请求模型／思考强度／服务等级、席位隔离与凭证扫描', { gatewayRequests: starts.length, completedGatewayRequests: finishes.length, realInferences: realInferences.length, gatewayRoleCounts: roleCounts, realInferenceRoleCounts, nextMatchActuallyUsedVersion: 2, credentialLeaks: 0 });

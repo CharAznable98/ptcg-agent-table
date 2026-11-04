@@ -105,6 +105,77 @@ test('P01 槽位移出留空，连续批量放置，末尾扩展且失败原子'
   throwsCode(() => move(state, zone('A:deck'), 'A:bench', 7), 'OUT_OF_RANGE');
 });
 
+test('区域槽位数通过通用命令扩缩，保留所有对象状态和可见性，不自动解释数量限制', () => {
+  let state = addGroup(game(), 'A:bench', 0);
+  state = inGroup(state, zone('A:deck'), 'A:bench', 0);
+  state = inGroup(state, zone('A:deck'), 'A:bench', 0, 'attached');
+  state = run(state, { kind: 'set_state', target: { kind: 'group', position: { zoneId: 'A:bench', index: 0 } }, field: { key: 'damageCounters', value: 2 } }).state;
+  state = run(state, { kind: 'set_state', target: { kind: 'card', position: { zoneId: 'A:bench', index: 0, member: { relation: 'attached', index: 0 } } }, field: { key: 'visibility', value: { mode: 'public' } } }).state;
+  for (const count of [8, 3, 11, 1]) {
+    const before = structuredClone(state), previousCount = before.zones['A:bench']!.contents.items.length;
+    const result = run(state, { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: count } });
+    assert.equal(result.changed, true);
+    assert.deepEqual(result.result, { key: 'slotCount', previousCount, count });
+    assert.deepEqual(result.reveals, []);
+    assert.deepEqual(state, before);
+    const expected = structuredClone(before);
+    expected.zones['A:bench']!.contents.items = Array.from({ length: count }, (_, index) => before.zones['A:bench']!.contents.items[index] ?? null);
+    expected.revision++;
+    assert.deepEqual(result.state, expected);
+    assert.equal(projectTable(result.state, 'B').zones.find(zone => zone.id === 'A:bench')!.items.length, count);
+    state = result.state;
+  }
+  // 既有原子操作仍可在末尾增加位置，物理长度不是卡文合法性判断器。
+  state = addGroup(state, 'A:bench', 1);
+  assert.equal(state.zones['A:bench']!.contents.items.length, 2);
+});
+
+test('槽位缩小遇到尾部卡牌组或卡牌时原子拒绝，须先显式移走完整对象', () => {
+  let state = run(game(), { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: 8 } }).state;
+  state = addGroup(state, 'A:bench', 7);
+  state = inGroup(state, zone('A:deck'), 'A:bench', 7);
+  state = inGroup(state, zone('A:deck'), 'A:bench', 7, 'attached');
+  const before = structuredClone(state), id = state.zones['A:bench']!.contents.items[7]!.id;
+  throwsCode(() => run(state, { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: 5 } }), 'SLOT_NOT_EMPTY');
+  assert.deepEqual(state, before);
+  assert.deepEqual(state.groups[id], before.groups[id]);
+  state = move(state, zone('A:bench', [7]), 'A:bench', 0);
+  state = run(state, { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: 5 } }).state;
+  assert.equal(state.zones['A:bench']!.contents.items[0]!.id, id);
+  assert.deepEqual(state.groups[id], before.groups[id]);
+  assert.deepEqual(state.cards, before.cards);
+  state = move(state, zone('A:deck'), 'A:prizes', 5);
+  const cardTail = structuredClone(state);
+  throwsCode(() => run(state, { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:prizes' }, field: { key: 'slotCount', value: 5 } }), 'SLOT_NOT_EMPTY');
+  assert.deepEqual(state, cardTail);
+});
+
+test('槽位数相同时不推进版本，空槽位区域可设为零并重新扩容', () => {
+  const state = game(), before = structuredClone(state);
+  const unchanged = run(state, { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: 5 } });
+  assert.equal(unchanged.changed, false);
+  assert.deepEqual(unchanged.state, before);
+  assert.deepEqual(unchanged.result, { key: 'slotCount', previousCount: 5, count: 5 });
+  const empty = run(state, { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: 0 } }).state;
+  assert.deepEqual(empty.zones['A:bench']!.contents, { layout: 'slots', items: [] });
+  const expanded = run(empty, { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: 1000 } }).state;
+  assert.deepEqual(expanded.zones['A:bench']!.contents.items, Array(1000).fill(null));
+  assert.deepEqual(state, before);
+});
+
+test('槽位数拒绝非槽位区域、非区域目标和无效数量，拒绝不改原状态', () => {
+  const state = addGroup(game()), before = structuredClone(state);
+  throwsCode(() => run(state, { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:deck' }, field: { key: 'slotCount', value: 8 } }), 'SLOT_LAYOUT_REQUIRED');
+  for (const target of [{ kind: 'player', playerId: 'A' }, { kind: 'group', position: { zoneId: 'A:active', index: 0 } }, { kind: 'card', position: { zoneId: 'A:deck', index: 0 } }] as const) {
+    throwsCode(() => run(state, { kind: 'set_state', target, field: { key: 'slotCount', value: 8 } }), 'INVALID_FIELD');
+  }
+  throwsCode(() => run(state, { kind: 'set_state', target: { kind: 'zone', zoneId: 'missing' }, field: { key: 'slotCount', value: 8 } }), 'ZONE_NOT_FOUND');
+  for (const value of [-1, 1.5, 1001, Number.NaN, Number.POSITIVE_INFINITY]) {
+    throwsCode(() => run(state, { kind: 'set_state', target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value } }), 'INVALID_COMMAND');
+  }
+  assert.deepEqual(state, before);
+});
+
 test('P01 单组整体移动保留组状态，跨区域清除所有成员覆盖', () => {
   let state = addGroup(game());
   state = inGroup(state, zone('A:deck', [0, 1]));
@@ -339,7 +410,7 @@ test('可见覆盖、私有手牌和准备敏感choice按席位投影，返回�
   assert.equal(state.flow.operator, 'A'); assert.equal(state.players[0].deck.name, '甲卡组');
 });
 
-test('P03 区域只开放非空visibility字段，开局公开不影响覆盖', () => {
+test('P03 区域可见范围须非空，开局公开不影响覆盖', () => {
   let state = addGroup(game());
   state = inGroup(state, zone('A:deck', [0, 1]));
   state = run(state, { kind: 'set_state', target: { kind: 'card', position: { zoneId: 'A:active', index: 0, member: { relation: 'stack', index: 0 } } }, field: { key: 'visibility', value: { mode: 'hidden' } } }).state;
