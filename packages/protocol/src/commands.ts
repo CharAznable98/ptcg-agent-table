@@ -19,6 +19,8 @@ export const ConditionsSchema = Type.Array(Type.Union(['poisoned', 'burned', 'as
 export const MarkerValueSchema = Type.Union([Type.String(), Type.Number(), Type.Boolean()]);
 export const StateTargetSchema = Type.Union([obj({ kind: Type.Literal('card'), position: PositionSchema }), obj({ kind: Type.Literal('group'), position: obj({ zoneId: Id, index: N }) }), obj({ kind: Type.Literal('player'), playerId: PlayerIdSchema }), obj({ kind: Type.Literal('zone'), zoneId: Id })]);
 export const StateFieldSchema = Type.Union([
+  /** 仅调整槽位区域的物理长度；缩小时保留范围外必须全空，不自动移牌或解释卡文。 */
+  obj({ key: Type.Literal('slotCount'), value: Type.Integer({ minimum: 0, maximum: 1000 }) }),
   obj({ key: Type.Literal('damageCounters'), value: N }),
   obj({ key: Type.Literal('specialConditions'), value: ConditionsSchema }),
   obj({ key: Type.Literal('visibility'), value: Type.Union([VisibilitySchema, Type.Null()]) }),

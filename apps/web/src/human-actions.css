@@ -24,19 +24,22 @@
 .human-setup-bar { display: flex; align-items: center; gap: 7px; margin-left: auto; min-width: 0; color: var(--match-muted); font-size: 11px; }
 .setup-bar-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setup-placement-count { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
-/* 槽位使用整行可用宽度；牌面列跟随实际高度，剩余空间全部交给信息列。 */
-.match-workspace .playmat .zone-bench > .zone-content { display: grid; grid-template-columns: repeat(var(--bench-slots, 5), minmax(128px, 1fr)); grid-template-rows: minmax(0, 1fr); justify-content: stretch; align-items: stretch; }
+/* 槽位使用整行可用宽度；牌面按槽位宽高等比缩放，剩余空间交给信息列。 */
+.match-workspace .playmat .zone-bench > .zone-content { display: grid; grid-template-columns: repeat(var(--bench-slots, 5), minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); justify-content: stretch; align-items: stretch; }
 .match-workspace .playmat .zone-bench .zone-position,
 .match-workspace .playmat .zone-bench .group-object,
 .match-workspace .playmat .zone-bench .empty-slot { width: 100%; min-width: 0; height: 100%; min-height: 0; }
+.match-workspace .playmat .zone-bench .zone-position { container-type: inline-size; }
 .match-workspace .playmat .group-object { grid-template-rows: minmax(0, 1fr); align-content: start; padding-top: 0; padding-bottom: 0; }
 .match-workspace .playmat :is(.zone-bench, .zone-active) .group-object { --rendered-face-height: min(var(--face-height), calc(100cqh - 4px)); grid-template-columns: calc(var(--rendered-face-height) * 63 / 88) minmax(0, 1fr); }
+/* 宽度紧张时等比缩小牌面，为卡名与状态保留空间；宽裕槽位继续使用原尺寸。 */
+.match-workspace .playmat .zone-bench .group-object { --rendered-face-height: min(var(--face-height), calc(100cqh - 4px), calc((100cqw - 14px) * .4 * 88 / 63)); }
 .match-workspace .playmat :is(.zone-bench, .zone-active) .group-object > .object-button { height: var(--rendered-face-height); }
 /* 只有 extra 可以滚动；外层不成为滚动容器，聚焦/End 不会卷走必需信息。 */
 .match-workspace .playmat .group-object > .group-info { grid-column: 2; grid-row: 1; align-self: stretch; display: grid; grid-template-rows: max-content minmax(20px, 1fr); align-content: start; gap: 1px; min-width: 0; min-height: 0; height: 100%; overflow: clip; }
 .match-workspace .playmat .group-object > .group-info:not(:has(> .group-extra)) { grid-template-rows: max-content; align-content: safe center; }
 .group-required { display: grid; gap: 0; min-width: 0; }
-.match-workspace .group-info .group-badges { flex-wrap: nowrap; gap: 0 4px; line-height: 1.2; white-space: nowrap; }
+.match-workspace .group-info .group-badges { flex-wrap: wrap; gap: 0 4px; line-height: 1.2; overflow-wrap: anywhere; }
 .group-extra { display: flex; flex-direction: column; gap: 2px; min-height: 20px; min-width: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--match-accent) var(--match-zone); }
 .group-extra > * { flex-shrink: 0; }
 .group-stack-count { position: absolute; bottom: 1px; right: 1px; z-index: 1; pointer-events: none; padding: 1px 3px; max-width: calc(100% - 2px); border: 1px solid var(--match-line); border-radius: 2px; background: var(--match-surface); color: var(--match-text); font-size: 9px; font-weight: 600; line-height: 1.2; white-space: nowrap; }

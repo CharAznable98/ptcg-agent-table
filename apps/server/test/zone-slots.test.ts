@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { buildApp } from '../src/app.ts';
+import { MatchRuntime } from '../src/match.ts';
+import { seedHumanScenario } from '../../../scripts/human-action-fixtures.ts';
+import type { GameCommand } from '../../../packages/protocol/src/index.ts';
+
+test('槽位工具真实提交、请求幂等、拒绝保留卡牌组、磁盘恢复与只读投影', async t => {
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('槽位工具测试禁止模型请求'); });
+  const directory = await mkdtemp(join(tmpdir(), 'ptcg-zone-slots-'));
+  const app = await buildApp({ dataDir: join(directory, 'data'), systemDir: join(directory, 'system'), modelFactory: () => ({ async generate() { throw new Error('禁止外部模型'); } }) });
+  t.after(async () => { await app.close(); await rm(directory, { recursive: true, force: true }); });
+  const match = await seedHumanScenario(app.gameService, 'zone-slots', { aiSpectator: true });
+  const request = { matchId: match.state.id, playerId: 'A', requestId: randomUUID(), revision: match.state.revision, tool: 'set_state', arguments: { target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: 8 } } };
+  const first = await match.execute(request), revision = match.state.revision;
+  assert.equal(first.status, 'committed'); assert.equal(match.state.zones['A:bench']!.contents.items.length, 8);
+  assert.deepEqual(await match.execute(request), first); assert.equal(match.state.revision, revision);
+  const execute = async (command: GameCommand) => {
+    const { kind, ...args } = command;
+    const receipt = await match.execute({ matchId: match.state.id, playerId: 'A', requestId: randomUUID(), revision: match.state.revision, tool: kind, arguments: args });
+    assert.equal(receipt.status, 'committed', JSON.stringify(receipt)); return receipt;
+  };
+  await execute({ kind: 'create_group', destination: { container: { kind: 'zone', zoneId: 'A:bench' }, index: 7 } });
+  await execute({ kind: 'move', source: { container: { kind: 'zone', zoneId: 'A:hand' }, range: { mode: 'indices', indices: [0] } }, destination: { container: { kind: 'group', position: { zoneId: 'A:bench', index: 7 }, relation: 'stack' }, index: 0 } });
+  const before = structuredClone(match.state), rejected = await match.execute({ ...request, requestId: randomUUID(), revision: before.revision, arguments: { target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: 5 } } });
+  assert.equal(rejected.status, 'rejected'); assert.deepEqual(match.state, before);
+  const recovered = new MatchRuntime({ directory: match.directory }); await recovered.recover();
+  assert.deepEqual(recovered.state, before); const count = recovered.records.length;
+  const frame = await recovered.observe(recovered.state.id, 'A', null);
+  assert.equal((frame.snapshot as { zones: { id: string; items: unknown[] }[] }).zones.find(zone => zone.id === 'A:bench')!.items.length, 8);
+  assert.equal(recovered.records.length, count); assert.deepEqual(recovered.state, before);
+  await execute({ kind: 'move', source: { container: { kind: 'group', position: { zoneId: 'A:bench', index: 7 }, relation: 'stack' }, range: { mode: 'all' } }, destination: { container: { kind: 'zone', zoneId: 'A:discard' }, index: 'end' } });
+  await execute({ kind: 'remove_group', position: { zoneId: 'A:bench', index: 7 } });
+  await execute({ kind: 'set_state', target: { kind: 'zone', zoneId: 'A:bench' }, field: { key: 'slotCount', value: 5 } });
+  assert.equal(match.state.zones['A:bench']!.contents.items.length, 5);
+});

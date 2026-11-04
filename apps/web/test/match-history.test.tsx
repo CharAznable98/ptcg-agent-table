@@ -41,6 +41,18 @@ function props(value: MatchView) {
 }
 
 describe("历史动作的中文呈现", () => {
+  it("区域槽位调整显示历史前后数量，不解释卡文或自动弃牌", () => {
+    const before = structuredClone(view), after = structuredClone(view);
+    before.zones.find((zone) => zone.id === "A:bench")!.items = Array(5).fill(null);
+    after.zones.find((zone) => zone.id === "A:bench")!.items = Array(8).fill(null);
+    const command = { kind: "set_state", target: { kind: "zone", zoneId: "A:bench" }, field: { key: "slotCount", value: 8 } };
+    expect(presentEvent(recorded(2, command, after), recorded(1, { kind: "declare" }, before))).toMatchObject({
+      title: "A 的备战区槽位：5 → 8",
+      positions: [{ zoneId: "A:bench", index: 0 }],
+    });
+    expect(presentEvent(recorded(3, { ...command, field: { key: "slotCount", value: 3 } }, undefined, { result: { previousCount: 8, count: 3 } })).title).toBe("A 的备战区槽位：8 → 3");
+    expect(presentEvent(recorded(4, { ...command, field: { key: "slotCount", value: 0 } }, undefined, { result: { previousCount: 3, count: 0 } })).title).toBe("A 的备战区槽位：3 → 0");
+  });
   it("附着描述使用历史牌名并定位目标，不再定位已移出的手牌", () => {
     const previous = recorded(1, { kind: "declare", text: "准备附着" }, view);
     const next = structuredClone(view);
