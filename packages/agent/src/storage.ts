@@ -26,8 +26,11 @@ export async function atomicJson(path: string, value: unknown): Promise<void> {
   try { await file.writeFile(JSON.stringify(value, null, 2) + '\n'); await file.sync(); }
   finally { await file.close(); }
   await rename(tmp, path);
-  const dir = await open(dirname(path), 'r');
-  try { await dir.sync(); } finally { await dir.close(); }
+  // Windows 不支持对目录句柄 fsync（会抛 EPERM），重命名本身已经原子落盘，仅在 POSIX 上同步目录项。
+  if (process.platform !== 'win32') {
+    const dir = await open(dirname(path), 'r');
+    try { await dir.sync(); } finally { await dir.close(); }
+  }
 }
 
 export interface JsonlTraceOptions {

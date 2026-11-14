@@ -13,7 +13,16 @@ export const HumanActionIntentSchema = Type.Union([
   object({ kind: Type.Literal('attach'), source: PositionSchema, target: PositionSchema }),
   object({ kind: Type.Literal('evolve'), source: PositionSchema, target: PositionSchema }),
   object({ kind: Type.Literal('attack'), source: PositionSchema, attackIndex: index, target: PositionSchema }),
+  /** 玩家指定额外招式及可见来源，或以文字指明历史效果来源。 */
+  object({ kind: Type.Literal('other_attack'), source: PositionSchema, target: PositionSchema, attackName: Type.String({ minLength: 1, maxLength: 200 }), origin: Type.Union([
+    object({ kind: Type.Literal('card'), position: PositionSchema }),
+    object({ kind: Type.Literal('description'), text: Type.String({ minLength: 1, maxLength: 500 }) }),
+  ]) }),
+  /** 使用附着卡提供的招式；具体招式和可用条件由执行代理按卡文核对。 */
+  object({ kind: Type.Literal('attached_attack'), source: PositionSchema, provider: PositionSchema, target: PositionSchema }),
   object({ kind: Type.Literal('ability'), source: PositionSchema, abilityIndex: index, target: Type.Optional(PositionSchema) }),
+  /** 玩家主动使用可见卡牌的效果；存在多个可选效果时由玩家说明或在结算中选择。 */
+  object({ kind: Type.Literal('activate_effect'), source: PositionSchema, effect: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })) }),
   object({ kind: Type.Literal('retreat'), source: PositionSchema, target: PositionSchema }),
   object({ kind: Type.Literal('draw') }),
   object({ kind: Type.Literal('end_turn') }),

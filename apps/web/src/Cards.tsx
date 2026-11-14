@@ -4,6 +4,8 @@ import type {
   CardData,
   GameCommand,
   GroupView,
+  HumanActionIntent,
+  MatchView,
   ObjectView,
   Position,
   ZoneView,
@@ -539,17 +541,29 @@ export function ObjectInspector({
   selected,
   onSelect,
   pinned = true,
+  actionView,
+  actionEnabled = false,
+  onIntent,
 }: {
   object: ObjectView;
   close: () => void;
   selected: Position[];
   onSelect: (position: Position) => void;
   pinned?: boolean;
+  actionView?: MatchView;
+  actionEnabled?: boolean;
+  onIntent?: (intent: HumanActionIntent) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  const useButton = useRef<HTMLButtonElement>(null);
   const closeRef = useRef(close);
   closeRef.current = close;
   const [member, setMember] = useState<string | null>(null);
+  const [using, setUsing] = useState(false);
+  const usingRef = useRef(false); usingRef.current = using;
+  const [mode, setMode] = useState<"effect" | "attack">("effect");
+  const [effect, setEffect] = useState("");
+  const [attackName, setAttackName] = useState("");
   const cards =
     object.kind === "group" ? [...object.stack, ...object.attached] : [];
   const focused =
@@ -558,6 +572,12 @@ export function ObjectInspector({
         object.stack.at(-1) ??
         object.attached[0])
       : object;
+  const ownActive = actionView?.zones.find(zone => zone.kind === "active" && zone.playerId === actionView.viewer)?.items.find(item => item?.kind === "group");
+  const opponentActive = actionView?.zones.find(zone => zone.kind === "active" && zone.playerId !== actionView.viewer)?.items.find(item => item?.kind === "group");
+  const actionable = pinned && actionEnabled && actionView && !actionView.replay && actionView.viewer !== "omniscient" && focused?.kind === "card" && onIntent;
+  const closeUse = () => { setUsing(false); queueMicrotask(() => useButton.current?.focus()); };
+  useEffect(() => { setUsing(false); setEffect(""); setAttackName(""); setMode("effect"); }, [object.position.zoneId, object.position.index, member, actionView?.revision]);
+  useEffect(() => { if (!actionEnabled) setUsing(false); }, [actionEnabled]);
   useEffect(() => {
     if (!pinned) return;
     const previousFocus = document.activeElement;
@@ -565,6 +585,7 @@ export function ObjectInspector({
     const escape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        if (usingRef.current) { closeUse(); return; }
         closeRef.current();
       }
     };
@@ -653,6 +674,15 @@ export function ObjectInspector({
               />
             </div>
             <Markers values={focused.markers} />
+            {actionable && (using ? <form className="inspector-use-form" aria-label="使用卡牌" onSubmit={event => {
+              event.preventDefault();
+              if (mode === "effect") onIntent({ kind: "activate_effect", source: focused.position, ...(effect.trim() ? { effect: effect.trim() } : {}) });
+              else if (ownActive && opponentActive && attackName.trim()) onIntent({ kind: "other_attack", source: ownActive.position, target: opponentActive.position, attackName: attackName.trim(), origin: { kind: "card", position: focused.position } });
+            }}>
+              <label>操作<select value={mode} onChange={event => setMode(event.target.value as "effect" | "attack")}><option value="effect">使用效果</option><option value="attack">使用招式</option></select></label>
+              {mode === "effect" ? <label>效果说明（可选）<input maxLength={500} value={effect} onChange={event => setEffect(event.target.value)} /></label> : <label>招式名称<input maxLength={200} value={attackName} onChange={event => setAttackName(event.target.value)} /></label>}
+              <div><Button onClick={closeUse}>返回</Button><Button type="submit" disabled={mode === "attack" && (!ownActive || !opponentActive || !attackName.trim())}>使用</Button></div>
+            </form> : <button ref={useButton} type="button" className="button" onClick={() => setUsing(true)}>使用</button>)}
           </>
         ) : (
           <p>{focused ? "当前视角不可见。" : "空卡牌组"}</p>

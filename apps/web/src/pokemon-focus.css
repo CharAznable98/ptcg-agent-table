@@ -36,6 +36,12 @@
 .pokemon-retreat-targets { display: grid; gap: 8px; }
 .pokemon-retreat-targets > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pokemon-retreat-targets h3 { margin: 0; font-size: 14px; }
+.pokemon-other-attack { display: grid; gap: 12px; }
+.pokemon-other-attack h3 { margin: 0; font-size: 14px; }
+.pokemon-other-attack label { display: grid; gap: 5px; font-size: 13px; }
+.pokemon-other-attack input, .pokemon-other-attack select { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--match-line); border-radius: 5px; background: var(--match-surface); color: var(--match-text); }
+.pokemon-other-source { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; }
+.pokemon-other-attack > div { display: flex; gap: 8px; }
 @media (prefers-reduced-motion: no-preference) {
   .pokemon-focus { animation: pokemon-focus-in .16s ease-out; }
   .pokemon-action, .pokemon-retreat { transition: background-color .14s, border-color .14s, transform .14s; }

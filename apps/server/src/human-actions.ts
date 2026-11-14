@@ -5,7 +5,7 @@ import { resolveSelection } from '../../../packages/game-core/src/index.ts';
 import { JsonlTrace, SecretRedactor, validationError, loadDefaultPrompts } from '../../../packages/agent/src/index.ts';
 import type { ModelConfig, ModelGateway, ModelItem, ToolDefinition } from '../../../packages/agent/src/index.ts';
 import {
-  GameCommandSchema, PositionSchema, ContainerSchema, MoveDestinationSchema, HumanActionInputSchema, HumanChoiceAnswerSchema, HumanActionControlSchema,
+  CardSchema, GameCommandSchema, PositionSchema, ContainerSchema, MoveDestinationSchema, HumanActionInputSchema, HumanChoiceAnswerSchema, HumanActionControlSchema,
   type CardData, type GameCommand, type HumanActionChoice, type HumanActionControl, type HumanActionInput,
   type HumanActionView, type HumanChoiceAnswer, type HumanChoiceOption, type ObjectView, type PlayerId,
   type Position, type PromptConfig, type Selection, type Viewer, type GameState, type Container, type MoveDestination,
@@ -33,6 +33,7 @@ const ChoiceResolutionSchema = Type.Union([
 ]);
 const RequestChoiceSchema = object({
   kind: Type.Union([Type.Literal('select'), Type.Literal('order'), Type.Literal('number')]), title: text,
+  blind: Type.Optional(Type.Boolean()),
   options: Type.Array(object({ id: text, label: Type.Optional(text), position: Type.Optional(PositionSchema) }), { maxItems: 200 }),
   minimum: Type.Integer({ minimum: 0, maximum: 1000 }), maximum: Type.Integer({ minimum: 0, maximum: 1000 }),
   orderDestination: Type.Optional(MoveDestinationSchema),
@@ -41,6 +42,7 @@ const RequestChoiceSchema = object({
   resolution: Type.Optional(ChoiceResolutionSchema),
 });
 const MechanicalSchema = Type.Union([
+  object({ kind: Type.Literal('check_state'), source: PositionSchema }),
   object({ kind: Type.Literal('switch'), target: PositionSchema }),
   object({ kind: Type.Literal('draw'), basis: Type.Union([Type.Literal('fixed'), Type.Literal('prizes')]), effectStep: effectText }),
   object({ kind: Type.Literal('place'), choiceId: text, target: PositionSchema }),
@@ -68,10 +70,11 @@ interface QuantityBinding { scope: string; step: EffectStep }
 type ChoiceResolution = Static<typeof ChoiceResolutionSchema> & { groupIdentity?: string };
 interface ChoiceUse { choiceId: string; keys: string[] }
 interface QuantityUse { choiceId: string; scope: string; count: number }
-interface AuthorizationCommit { quantities: QuantityUse[]; orders: { choiceId: string; destination: OrderDestination }[]; extraTurn?: boolean; steps?: string[]; choices?: ChoiceUse[] }
+interface AuthorizationCommit { quantities: QuantityUse[]; orders: { choiceId: string; destination: OrderDestination }[]; extraTurn?: boolean; steps?: string[]; choices?: ChoiceUse[]; checkStateUse?: string }
 interface PlacementBinding { choiceId: string; effectText: string; target: Position; cardId: string; groupId?: string }
 interface SwitchBinding { target: string; effectText: string; active: Position; bench: Position; activeId: string; benchId: string }
-interface AnswerRecord { requestId: string; fingerprint: string; choice: HumanActionChoice; selected: string[]; number?: number; identities: string[]; candidateIdentities?: string[]; candidateRevision?: number; consumed: string[]; invalidated?: boolean; orderDestination?: OrderDestination; quantityUses?: QuantityUse[]; quantityScopes?: string[]; quantityBindings?: QuantityBinding[]; selectionKeys?: string[]; executed?: string[]; resolution?: ChoiceResolution }
+interface ChoiceReconciliation { choiceId: string; eventId: string; targetId: string; cardChoiceId: string; effectHash: string }
+interface AnswerRecord { requestId: string; fingerprint: string; choice: HumanActionChoice; selected: string[]; number?: number; blind?: boolean; identities: string[]; candidateIdentities?: string[]; candidateRevision?: number; consumed: string[]; invalidated?: boolean; orderDestination?: OrderDestination; quantityUses?: QuantityUse[]; quantityScopes?: string[]; quantityBindings?: QuantityBinding[]; selectionKeys?: string[]; executed?: string[]; resolution?: ChoiceResolution }
 interface PendingCommand { requestId: string; revision: number; command: GameCommand; callId: string; consumedIdentities: string[]; authorization?: AuthorizationCommit; sequenceIndex?: number }
 interface PendingRecovery { requestId: string; revision: number; beforeEventId: string; reason: string; callId: string }
 interface RecoverySession { instructions: string; toolDescription: string; messageStart: number; reviewPasses: number; rollbackCount: number; modelCalls?: number; lastFailure?: string }
@@ -84,12 +87,13 @@ interface ActionState {
   cursor: string | null;
   answers: AnswerRecord[]; initialIdentities: string[]; initialLocations: string[];
   revealed: { position: Position; card: CardData; identity: string; stamp: string }[];
-  choiceCallId?: string; sourceCard?: CardData; initialTurn: number; effectTexts: string[];
+  choiceCallId?: string; sourceCard?: CardData; providerCard?: CardData; providerIdentity?: string; initialTurn: number; effectTexts: string[];
   initialHandoffReturnTo?: PlayerId; initialHandoffReason?: string;
   choiceOrderDestination?: OrderDestination; extraTurnGranted?: boolean;
   choiceQuantityScopes?: string[];
   choiceQuantityBindings?: QuantityBinding[]; effectStepUses?: string[];
   choiceResolution?: ChoiceResolution;
+  choiceBlind?: boolean;
   sequence?: ExecutionSequence;
   turnStart?: { key: string; requiresReview: boolean };
   interrupted?: boolean;
@@ -97,6 +101,8 @@ interface ActionState {
   pendingRecovery?: PendingRecovery;
   mechanicalSwitches?: SwitchBinding[];
   mechanicalPlacements?: PlacementBinding[];
+  checkStateUses?: string[];
+  choiceReconciliations?: ChoiceReconciliation[];
   context?: HumanActionContext;
   manual?: boolean;
 }
@@ -128,6 +134,13 @@ function identityInState(state: GameState, position: Position): string | null {
   const card = state.groups[parent.id]?.[position.member.relation][position.member.index];
   return card ? `card:${card}` : null;
 }
+function checkStateKey(game: GameState, source: Position, command: GameCommand, effectText: string, effectStep?: string): string | null {
+  if (command.kind !== 'set_state' || command.target.kind !== 'group') return null;
+  const ref = game.zones[source.zoneId]?.contents.items[source.index];
+  const sourceId = source.member ? identityInState(game, source) : ref?.kind === 'group' ? `card:${game.groups[ref.id]?.stack.at(-1) ?? ''}` : identityInState(game, source);
+  const targetId = identityInState(game, command.target.position);
+  return sourceId && sourceId !== 'card:' && targetId ? canonical({ sourceId, targetId, field: command.field.key, effectText, effectStep: effectStep ?? null }) : null;
+}
 function positionOfIdentity(state: GameState, identity: string): Position | null {
   for (const zone of Object.values(state.zones)) for (const [index, ref] of zone.contents.items.entries()) {
     if (!ref) continue;
@@ -147,16 +160,31 @@ function cardAt(match: MatchRuntime, playerId: PlayerId, position: Position): Ca
   return top?.kind === 'card' ? top.card : null;
 }
 function zoneStamp(match: MatchRuntime, zoneId: string): string {
-  const zone = match.state.zones[zoneId];
+  return zoneStampInState(match.state, zoneId);
+}
+function zoneStampInState(game: GameState, zoneId: string): string {
+  const zone = game.zones[zoneId];
   if (!zone) return '';
-  return canonical({ items: zone.contents.items, groups: zone.contents.items.flatMap(item => item?.kind === 'group' ? [match.state.groups[item.id] && { stack: match.state.groups[item.id]!.stack, attached: match.state.groups[item.id]!.attached }] : []) });
+  return canonical({ items: zone.contents.items, groups: zone.contents.items.flatMap(item => item?.kind === 'group' ? [game.groups[item.id] && { stack: game.groups[item.id]!.stack, attached: game.groups[item.id]!.attached }] : []) });
 }
 function cardEffects(card: CardData | null): string[] {
   if (!card) return [];
   return [...('text' in card && card.text ? [card.text] : []), ...(card.rulesText ? [card.rulesText] : []), ...(card.kind === 'pokemon' ? card.abilities.map(ability => ability.text) : [])].filter(Boolean);
 }
+/** 仅读取权限投影后的历史回执中的牌面，绝不把用户自由输入当作卡文。 */
+function historyCardEffects(value: unknown, sourceName: string, attackName: string): string[] {
+  if (!value || typeof value !== 'object') return [];
+  if (Array.isArray(value)) return value.flatMap(item => historyCardEffects(item, sourceName, attackName));
+  const item = value as Record<string, unknown>;
+  if (typeof item.kind === 'string' && item.name === sourceName && !validationError(CardSchema, item)) {
+    const card = item as CardData;
+    return [...cardEffects(card), ...(card.kind === 'pokemon' ? card.attacks.filter(attack => attack.name === attackName).map(attack => attack.text) : [])];
+  }
+  return Object.values(item).flatMap(item => historyCardEffects(item, sourceName, attackName));
+}
 function label(input: HumanActionInput, source: CardData | null): string {
-  const names = { play: '使用', attach: '附着', evolve: '进化', attack: '使用招式', ability: '使用特性', retreat: '撤退', draw: '抽牌', end_turn: '结束回合', turn_start: '回合开始', resolve_handoff: '完成受托操作' };
+  const names = { play: '使用', attach: '附着', evolve: '进化', attack: '使用招式', attached_attack: '使用附着卡招式', other_attack: '使用招式', ability: '使用特性', activate_effect: '使用效果', retreat: '撤退', draw: '抽牌', end_turn: '结束回合', turn_start: '回合开始', resolve_handoff: '完成受托操作' };
+  if (input.intent.kind === 'other_attack') return `${source?.name ?? '宝可梦'} · ${input.intent.attackName}`;
   if (input.intent.kind === 'attack' && source?.kind === 'pokemon') return `${source.name} · ${source.attacks[input.intent.attackIndex]?.name ?? '招式'}`;
   if (input.intent.kind === 'ability' && source?.kind === 'pokemon') return `${source.name} · ${source.abilities[input.intent.abilityIndex]?.name ?? '特性'}`;
   return `${names[input.intent.kind]}${source ? ` ${source.name}` : ''}`;
@@ -250,7 +278,7 @@ export class HumanActionController {
   #unlock(): void { if (this.#state) this.match.unlockHumanAction(this.playerId, this.#state.view.id); }
   #terminalFlowCommitted(): boolean {
     const intent = this.#state!.input.intent;
-    return intent.kind === 'resolve_handoff' ? this.#returned() : ['attack', 'end_turn'].includes(intent.kind) && this.#turnEnded();
+    return intent.kind === 'resolve_handoff' ? this.#returned() : ['attack', 'attached_attack', 'other_attack', 'end_turn'].includes(intent.kind) && this.#turnEnded();
   }
   #settleCompletedFlow(): boolean {
     const state = this.#state!;
@@ -327,24 +355,37 @@ export class HumanActionController {
         if (intent.kind === 'resolve_handoff' && (flow.choice?.kind !== 'handoff' || flow.choice.playerId !== playerId || !flow.handoffReturnTo)) throw new ApiError('INVALID_HANDOFF', '当前没有等待本席位处理的受托操作', 409);
         if (flow.choice?.kind === 'handoff' && intent.kind !== 'resolve_handoff') throw new ApiError('HANDOFF_ACTION_REQUIRED', '请先完成受托操作并归还操作权', 409);
         const source = 'source' in intent ? intent.source ?? null : null;
-        if (source && (!source.zoneId.startsWith(`${playerId}:`) || !identity(this.match, source))) throw new ApiError('INVALID_ACTION_SOURCE', '请使用本人当前牌桌上的卡牌');
+        if (source && (intent.kind !== 'activate_effect' && !source.zoneId.startsWith(`${playerId}:`) || !identity(this.match, source))) throw new ApiError('INVALID_ACTION_SOURCE', '请使用当前可见的卡牌');
         const sourceCard = source ? cardAt(this.match, playerId, source) : null;
         if (source && !sourceCard) throw new ApiError('HIDDEN_INFORMATION', '不能用未知牌面发起此行动', 403);
+        if (intent.kind === 'activate_effect' && intent.effect !== undefined && !intent.effect.trim()) throw new ApiError('INVALID_ACTION', '效果说明不能为空');
         if ((intent.kind === 'attack' || intent.kind === 'ability') && (sourceCard?.kind !== 'pokemon' || !(intent.kind === 'attack' ? sourceCard.attacks[intent.attackIndex] : sourceCard.abilities[intent.abilityIndex]))) throw new ApiError('INVALID_ACTION', '所选招式或特性不存在');
+        const originPosition = intent.kind === 'other_attack' && intent.origin.kind === 'card' ? intent.origin.position : null;
+        const providerCard = intent.kind === 'attached_attack' ? cardAt(this.match, playerId, intent.provider) : originPosition ? cardAt(this.match, playerId, originPosition) : null;
+        if (intent.kind === 'other_attack' && (!intent.attackName.trim() || intent.origin.kind === 'description' && !intent.origin.text.trim() || sourceCard?.kind !== 'pokemon' || !identity(this.match, intent.source)?.startsWith('group:') || intent.source.member || this.match.state.zones[intent.source.zoneId]?.kind !== 'active' || intent.target.member || !identity(this.match, intent.target)?.startsWith('group:') || originPosition && (!providerCard || !identity(this.match, originPosition)))) throw new ApiError('INVALID_ACTION_SOURCE', '请选择战斗宝可梦、可见来源和招式名称');
+        if (intent.kind === 'attached_attack' && (sourceCard?.kind !== 'pokemon' || !identity(this.match, intent.source)?.startsWith('group:') || intent.source.member || this.match.state.zones[intent.source.zoneId]?.kind !== 'active'
+          || intent.provider.zoneId !== intent.source.zoneId || intent.provider.index !== intent.source.index || intent.provider.member?.relation !== 'attached' || !providerCard || !identity(this.match, intent.provider)
+          || intent.target.member || !identity(this.match, intent.target)?.startsWith('group:'))) throw new ApiError('INVALID_ACTION_SOURCE', '招式来源必须是当前战斗宝可梦身上可见的附着卡，且目标必须存在');
         const config = await this.#configuration();
         const positions = [source, 'target' in intent ? intent.target ?? null : null].filter((value): value is Position => value !== null);
         const targetCard = 'target' in intent && intent.target ? cardAt(this.match, playerId, intent.target) : null;
         const publicGroups = this.match.view(playerId).zones.flatMap(zone => zone.items.flatMap(item => item?.kind === 'group' ? [item] : []));
         const handoffCards = intent.kind === 'resolve_handoff' ? this.#handoffCards() : [];
-        const effectTexts = intent.kind === 'attack' && sourceCard?.kind === 'pokemon' ? [sourceCard.attacks[intent.attackIndex]!.text, ...cardEffects(targetCard)]
+        const effectTexts = intent.kind === 'activate_effect' ? cardEffects(sourceCard)
+          : intent.kind === 'other_attack' ? [...cardEffects(providerCard), ...(providerCard?.kind === 'pokemon' ? providerCard.attacks.filter(attack => attack.name === intent.attackName).map(attack => attack.text) : []), ...cardEffects(targetCard)]
+          : intent.kind === 'attached_attack' ? [...cardEffects(providerCard), ...cardEffects(targetCard)]
+          : intent.kind === 'attack' && sourceCard?.kind === 'pokemon' ? [sourceCard.attacks[intent.attackIndex]!.text, ...cardEffects(targetCard)]
           : intent.kind === 'ability' && sourceCard?.kind === 'pokemon' ? [sourceCard.abilities[intent.abilityIndex]!.text, ...cardEffects(targetCard)]
           : intent.kind === 'turn_start' ? turnStart!.cards.flatMap(turnStartTexts) : intent.kind === 'end_turn' ? publicGroups.flatMap(group => cardEffects(cardAt(this.match, playerId, group.position))) : [...cardEffects(sourceCard), ...cardEffects(targetCard), ...handoffCards.flatMap(card => [...cardEffects(card), ...(card.kind === 'pokemon' ? card.attacks.map(attack => attack.text) : [])])];
         const handoffReturnTo = intent.kind === 'resolve_handoff' ? flow.handoffReturnTo : null;
         const emptyActive = intent.kind === 'resolve_handoff' && !this.match.state.zones[`${playerId}:active`]!.contents.items[0] ? [`${playerId}:active/0`] : [];
-        this.#state = { schemaVersion: 1, input, instructions: config.instructions, toolDescriptions: clone(config.toolDescriptions), feedback: clone(config.feedback), configurationVersion: config.version, context: createHumanActionContext(), messages: [user({ stage: 'human_action_rules', rules: this.match.meta.rules }), user({ stage: 'human_action_setup', intent, sourceCard, ...(handoffReturnTo ? { handoff: { returnTo: handoffReturnTo, reason: flow.choice?.message ?? '', sourceCards: handoffCards } } : {}) })], pending: null, failures: 0, modelCalls: 0, cursor: null, answers: [], revealed: [], initialTurn: this.match.state.flow.turnNumber, effectTexts: effectTexts.filter(Boolean),
+        this.#state = { schemaVersion: 1, input, instructions: config.instructions, toolDescriptions: clone(config.toolDescriptions), feedback: clone(config.feedback), configurationVersion: config.version, context: createHumanActionContext(), messages: [user({ stage: 'human_action_rules', rules: this.match.meta.rules }), user({ stage: 'human_action_setup', intent, sourceCard, ...(providerCard ? { providerCard } : {}), ...(handoffReturnTo ? { handoff: { returnTo: handoffReturnTo, reason: flow.choice?.message ?? '', sourceCards: handoffCards } } : {}) })], pending: null, failures: 0, modelCalls: 0, cursor: null, answers: [], revealed: [], initialTurn: this.match.state.flow.turnNumber, effectTexts: effectTexts.filter(Boolean),
           ...(handoffReturnTo ? { initialHandoffReturnTo: handoffReturnTo, initialHandoffReason: flow.choice?.message ?? '' } : {}),
-          initialIdentities: positions.flatMap(position => identity(this.match, position) ? [identity(this.match, position)!] : []), initialLocations: [...positions.map(location), ...emptyActive],
+          initialIdentities: [...(intent.kind === 'activate_effect' ? [] : positions.flatMap(position => identity(this.match, position) ? [identity(this.match, position)!] : [])), ...(intent.kind === 'attached_attack' ? [identity(this.match, intent.provider)!] : [])], initialLocations: [...(intent.kind === 'activate_effect' ? [] : positions.map(location)), ...emptyActive],
           ...(sourceCard ? { sourceCard } : {}),
+          ...(intent.kind === 'activate_effect' ? { providerIdentity: identity(this.match, intent.source)! } : {}),
+          ...(providerCard ? { providerCard } : {}),
+          ...(originPosition ? { providerIdentity: identity(this.match, originPosition)! } : {}),
           ...(turnStart ? { turnStart: { key: turnStart.key, requiresReview: turnStart.requiresReview } } : {}),
           view: { id, playerId, intent, label: label(input, sourceCard), status: 'running', revision: input.revision, eventIds: [] } };
         this.#lock(); await this.#save();
@@ -368,9 +409,9 @@ export class HumanActionController {
       } else if (input.number !== undefined || input.selected.length < choice.minimum || input.selected.length > choice.maximum || input.selected.some(selected => !choice.options.some(option => option.id === selected))) throw new ApiError('INVALID_CHOICE', '所选项或数量不符合要求');
       const selectedOptions = input.selected.map(selected => choice.options.find(option => option.id === selected)!);
       const orderDestination = choice.kind === 'order' && state.choiceResolution?.kind !== 'state' ? state.choiceOrderDestination ?? this.#inferOrderDestination(selectedOptions) : undefined;
-      state.answers.push({ requestId: input.requestId, fingerprint: canonical(input), choice: clone(choice), selected: input.selected, ...(input.number === undefined ? {} : { number: input.number }), identities: selectedOptions.flatMap(option => option.position && identity(this.match, option.position) ? [identity(this.match, option.position)!] : []), candidateRevision: this.match.state.revision, candidateIdentities: choice.options.flatMap(option => option.position && identity(this.match, option.position) ? [identity(this.match, option.position)!] : []), consumed: [], selectionKeys: selectedOptions.flatMap(option => option.position ? [identity(this.match, option.position) ?? `slot:${location(option.position)}`] : []), executed: [], ...(orderDestination ? { orderDestination } : {}), ...(state.choiceQuantityScopes ? { quantityScopes: clone(state.choiceQuantityScopes) } : {}), ...(state.choiceQuantityBindings ? { quantityBindings: clone(state.choiceQuantityBindings) } : {}), ...(state.choiceResolution ? { resolution: clone(state.choiceResolution) } : {}) });
+      state.answers.push({ requestId: input.requestId, fingerprint: canonical(input), choice: clone(choice), selected: input.selected, ...(input.number === undefined ? {} : { number: input.number }), ...(state.choiceBlind ? { blind: true } : {}), identities: selectedOptions.flatMap(option => option.position && identity(this.match, option.position) ? [identity(this.match, option.position)!] : []), candidateRevision: this.match.state.revision, candidateIdentities: choice.options.flatMap(option => option.position && identity(this.match, option.position) ? [identity(this.match, option.position)!] : []), consumed: [], selectionKeys: selectedOptions.flatMap(option => option.position ? [identity(this.match, option.position) ?? `slot:${location(option.position)}`] : []), executed: [], ...(orderDestination ? { orderDestination } : {}), ...(state.choiceQuantityScopes ? { quantityScopes: clone(state.choiceQuantityScopes) } : {}), ...(state.choiceQuantityBindings ? { quantityBindings: clone(state.choiceQuantityBindings) } : {}), ...(state.choiceResolution ? { resolution: clone(state.choiceResolution) } : {}) });
       state.messages.push({ type: 'function_call_output', call_id: state.choiceCallId!, output: JSON.stringify({ status: 'human_confirmed', choiceId: choice.id, selected: selectedOptions.map(option => ({ id: option.id, label: option.label, ...(option.position ? { position: option.position } : {}) })), ...(input.number === undefined ? {} : { number: input.number }) }) });
-      delete state.choiceCallId; delete state.choiceOrderDestination; delete state.choiceQuantityScopes; delete state.choiceQuantityBindings; delete state.choiceResolution; delete state.view.choice; delete state.view.error;
+      delete state.choiceCallId; delete state.choiceOrderDestination; delete state.choiceQuantityScopes; delete state.choiceQuantityBindings; delete state.choiceResolution; delete state.choiceBlind; delete state.view.choice; delete state.view.error;
       state.view.status = 'running'; state.failures = 0; this.#lock(); await this.#save(); this.#launch(); return this.view(input.playerId)!;
     });
   }
@@ -447,6 +488,8 @@ export class HumanActionController {
       const recoveryInstructions = configuration.feedback.humanRecoveryInstructions, toolDescription = configuration.toolDescriptions.human_restore_action;
       if (!recoveryInstructions || !toolDescription) throw new ApiError('RECOVERY_CONFIGURATION_MISSING', '缺少结算修正配置');
       state.recovery = { instructions: recoveryInstructions, toolDescription, messageStart: state.messages.length, reviewPasses: 0, rollbackCount: 0, modelCalls: 0 };
+      const reconciled = this.#reconcileChoiceTargets();
+      if (reconciled.length) { state.messages.push(user({ stage: 'choice_reconciliation', corrections: reconciled })); this.#restoreQuantityUses(); }
       state.view.recovery = { phase: 'reviewing', attempt: 1 };
       state.view.status = 'running'; delete state.view.error; state.failures = 0;
       delete state.interrupted;
@@ -465,8 +508,9 @@ export class HumanActionController {
     return {
       stage: 'recovery_review', actionId: state.view.id, originalIntent: state.input.intent, initialRevision: state.input.revision,
       latestFailure: state.recovery?.lastFailure ?? null, unfinished,
+      choiceReconciliations: state.choiceReconciliations ?? [],
       choices: state.answers.map(answer => ({ choiceId: answer.choice.id, kind: answer.choice.kind, invalidated: Boolean(answer.invalidated),
-        selected: answer.selected.map(id => { const option = answer.choice.options.find(option => option.id === id)!; return { id, label: option.label, ...(option.position ? { position: option.position } : {}) }; }),
+        selected: answer.selected.map(id => { const option = answer.choice.options.find(option => option.id === id)!; return { id, label: option.label, ...(option.position ? { position: option.position, cardShown: Boolean(option.card), ...(option.card ? { card: option.card } : {}) } : {}) }; }), ...(answer.blind ? { blind: true } : {}),
         ...(answer.number === undefined ? {} : { number: answer.number, applied: answer.quantityUses ?? [] }), executed: answer.executed ?? [] })),
       committedSteps: steps.map(step => ({ eventId: step.record.event!.A.id, revision: step.record.state.revision, command: step.command, choiceIds: step.choiceIds })),
       relatedHistory: first < 0 ? [] : this.match.records.slice(first).flatMap(record => record.event ? [{ ...record.event[state.view.playerId],
@@ -494,6 +538,8 @@ export class HumanActionController {
         if (!key || key.startsWith('slot:')) continue;
         const position = positionOfIdentity(this.match.state, key);
         if (!position) { invalidated = true; break; }
+        // 旧记录未展示牌面又未声明盲选；恢复至确认时点或之前时不能把它当成可靠的检索抉择。
+        if (confirmedRevision >= restoredRevision && !answer.blind && !option.card && this.match.state.zones[option.position.zoneId]?.kind === 'deck') { invalidated = true; break; }
         // 身份可用于公开对象定位；隐藏位置须仍有原选择时点的许可，不能凭后端身份追踪。
         if (!cardAt(this.match, state.view.playerId, position) && (confirmedRevision > restoredRevision || positionKeyChanged(position, option.position))) {
           invalidated = true; break;
@@ -586,8 +632,10 @@ export class HumanActionController {
       const own = zone.playerId === playerId;
       const visible = cardAt(this.match, playerId, position);
       const revealed = state.revealed.find(item => key(item.position) === key(position) && item.stamp === zoneStamp(this.match, position.zoneId) && item.identity === identity(this.match, position));
-      if (!own && !visible && !revealed) throw new ApiError('HIDDEN_INFORMATION', '不能读取其他席位的隐藏选项', 403);
+      const publicEmptySlot = !position.member && zone.contents.layout === 'slots' && zone.contents.items[position.index] === null && zone.defaultVisibility.mode === 'public';
+      if (!own && !visible && !revealed && !publicEmptySlot) throw new ApiError('HIDDEN_INFORMATION', '不能读取其他席位的隐藏选项', 403);
       const card = visible ?? revealed?.card;
+      if (!card && zone.kind === 'deck' && identity(this.match, position) && !request.blind) throw new ApiError('CHOICE_CARD_NOT_VISIBLE', '选项牌面尚未对玩家可见，请先按卡文查看；只有明确的盲选才能声明 blind');
       return { id: option.id, label: card?.name ?? `${position.zoneId} 第 ${position.index + 1} 位`, position: clone(position), ...(card ? { card: clone(card) } : {}) };
     });
     if (request.orderDestination && request.kind !== 'order') throw new ApiError('INVALID_CHOICE', '只有顺序选择可以声明排序目的地');
@@ -619,6 +667,7 @@ export class HumanActionController {
         state.choiceResolution = { ...resolution, ...(container.kind === 'group' ? { groupIdentity: identity(this.match, container.position)! } : {}) };
       } else state.choiceResolution = resolution;
     } else delete state.choiceResolution;
+    state.choiceBlind = request.blind === true || options.some(option => option.position && !option.card && this.match.state.zones[option.position.zoneId]?.kind === 'prizes');
     return { id: uid(), kind: request.kind, title: request.title, options, minimum: request.minimum, maximum: request.maximum };
   }
   #effectStep(source: string | undefined, quote: string | undefined): EffectStep | null {
@@ -671,6 +720,36 @@ export class HumanActionController {
       const answer = this.#state!.answers.find(answer => answer.choice.id === use.choiceId);
       if (answer) for (const key of use.keys) if (!answer.executed?.includes(key)) (answer.executed ??= []).push(key);
     }
+  }
+  /** 仅依赖人已确认的两个选择及同一有效提交，保留原选择和原始回执。 */
+  #choiceReconciliationEvidence(): ChoiceReconciliation[] {
+    const state = this.#state!, evidence: ChoiceReconciliation[] = [];
+    for (const step of committedHumanSteps(this.match, state.view.id, state.messages)) {
+      const command = step.command;
+      if (command.kind !== 'move' || command.destination.container.kind !== 'group' || command.destination.container.relation !== 'stack'
+        || !step.effectText || !state.effectTexts.includes(step.effectText)) continue;
+      const destination = command.destination.container, targetId = identityInState(step.before, destination.position);
+      if (!targetId?.startsWith('group:')) continue;
+      const selected = resolveSelection(step.before, command.source).map(ref => `${ref.kind}:${ref.id}`);
+      if (selected.length !== 1 || !selected[0]!.startsWith('card:')) continue;
+      const cardChoice = state.answers.find(answer => !answer.invalidated && answer.choice.kind === 'select' && step.choiceIds.includes(answer.choice.id)
+        && answer.identities.length === 1 && answer.identities[0] === selected[0] && answer.resolution?.kind === 'move'
+        && answer.resolution.container.kind === 'group' && answer.resolution.container.relation === 'stack' && answer.resolution.groupIdentity === targetId);
+      if (!cardChoice) continue;
+      for (const answer of state.answers) {
+        if (answer.invalidated || answer.choice.kind !== 'select' || answer.resolution?.kind !== 'state' || !step.choiceIds.includes(answer.choice.id)
+          || !this.#selectionKeys(answer).includes(targetId)) continue;
+        evidence.push({ choiceId: answer.choice.id, eventId: step.record.event!.A.id, targetId, cardChoiceId: cardChoice.choice.id,
+          effectHash: createHash('sha256').update(step.effectText).digest('hex') });
+      }
+    }
+    return evidence;
+  }
+  #reconcileChoiceTargets(): ChoiceReconciliation[] {
+    const state = this.#state!, existing = new Set((state.choiceReconciliations ?? []).map(canonical));
+    const additions = this.#choiceReconciliationEvidence().filter(item => !existing.has(canonical(item)));
+    if (additions.length) (state.choiceReconciliations ??= []).push(...additions);
+    return additions;
   }
   #validateChoices(): void {
     for (const answer of this.#state!.answers) {
@@ -784,11 +863,18 @@ export class HumanActionController {
     const state = this.#state!;
     for (const answer of state.answers) { answer.quantityUses = []; answer.executed = []; answer.consumed = []; }
     state.effectStepUses = [];
+    state.checkStateUses = [];
     const evidence = state.sequence ? [...state.messages, { type: 'function_call_output', call_id: state.sequence.callId, output: JSON.stringify({ receipts: state.sequence.receipts }) }] : state.messages;
+    const validReconciliations = new Set(this.#choiceReconciliationEvidence().map(canonical));
     for (const executed of committedHumanSteps(this.match, state.view.id, evidence)) {
       try {
+        if (executed.mechanical?.kind === 'check_state' && executed.effectText) {
+          const use = checkStateKey(executed.before, executed.mechanical.source, executed.command, executed.effectText, executed.effectStep);
+          if (use && !state.checkStateUses.includes(use)) state.checkStateUses.push(use);
+        }
         const request = executed, before = executed.before, scope = this.#quantityScope(request.command, before);
         this.#recordChoiceUses(this.#choiceUses(request, before));
+        for (const correction of state.choiceReconciliations ?? []) if (correction.eventId === executed.record.event?.A.id && validReconciliations.has(canonical(correction))) this.#recordChoiceUses([{ choiceId: correction.choiceId, keys: [correction.targetId] }]);
         if (request.command.kind === 'move') {
           const ids = resolveSelection(before, request.command.source).map(ref => `${ref.kind}:${ref.id}`);
           for (const answer of state.answers) for (const id of ids) if (answer.identities.includes(id) && !answer.consumed.includes(id)) answer.consumed.push(id);
@@ -837,7 +923,7 @@ export class HumanActionController {
       if (command.kind !== 'set_state') return false;
       if (command.target.kind !== 'group' && command.target.kind !== 'card') return false;
       const id = identityInState(before, command.target.position);
-      if (!id || !state.initialIdentities.includes(id) && !state.answers.some(answer => answer.identities.includes(id))) return false;
+      if (!id || !state.initialIdentities.includes(id) && !(state.input.intent.kind === 'activate_effect' && state.providerIdentity === id) && !state.answers.some(answer => answer.identities.includes(id))) return false;
       if (command.field.key === 'marker' && (!abilityName?.trim() || !command.field.name.includes(abilityName))) return false;
       const position = command.target.position;
       const oldRef = before.zones[position.zoneId]?.contents.items[position.index];
@@ -882,8 +968,9 @@ export class HumanActionController {
   }
   #attackStarted(): boolean {
     const state = this.#state!, intent = state.input.intent, source = state.sourceCard;
-    if (intent.kind !== 'attack' || source?.kind !== 'pokemon') return false;
-    const name = source.attacks[intent.attackIndex]?.name.trim();
+    if (intent.kind === 'other_attack') return Boolean(intent.attackName.trim() && this.#actionRecords().some(item => item.command.kind === 'declare' && item.command.text.includes(intent.attackName.trim())));
+    if (intent.kind !== 'attack' && intent.kind !== 'attached_attack' || source?.kind !== 'pokemon') return false;
+    const name = intent.kind === 'attached_attack' ? state.providerCard?.name.trim() : source.attacks[intent.attackIndex]?.name.trim();
     return this.#meaningfulEffect() || Boolean(name && this.#actionRecords().some(item => item.command.kind === 'declare' && item.command.text.includes(name)));
   }
   #returned(): boolean {
@@ -938,20 +1025,25 @@ export class HumanActionController {
       const sourceMoved = moves.some(item => item.selected.includes(sourceId!) && item.destination.kind === 'zone' && item.destination.zoneId === intent.target.zoneId && item.command.destination.index === intent.target.index);
       const targetMoved = moves.some(item => item.selected.includes(targetId!) && item.destination.kind === 'zone' && item.destination.zoneId === intent.source.zoneId && item.command.destination.index === intent.source.index);
       completed = sourceMoved && targetMoved;
-    } else if (intent.kind === 'attack' || intent.kind === 'end_turn') {
-      completed = this.#turnEnded() && (intent.kind !== 'attack' || this.#attackStarted());
+    } else if (intent.kind === 'attack' || intent.kind === 'attached_attack' || intent.kind === 'other_attack' || intent.kind === 'end_turn') {
+      completed = this.#turnEnded() && (intent.kind === 'end_turn' || this.#attackStarted());
     } else if (intent.kind === 'resolve_handoff') {
       completed = this.#returned() && this.#handoffWorkDone();
-    } else if (intent.kind === 'ability') {
+    } else if (intent.kind === 'ability' || intent.kind === 'activate_effect') {
       completed = this.#meaningfulEffect() || this.#explicitlySkipped() || this.#keptSelection();
     }
     if (!completed) throw new ApiError('HUMAN_ACTION_INCOMPLETE', '当前意图尚无对应的实际执行结果；请核对记录并完成缺失步骤，不能仅凭宣告或无关标记结束');
   }
   #checkTarget(position: Position): boolean {
     const state = this.#state!, intent = state.input.intent;
-    if (!['attack', 'end_turn'].includes(intent.kind) || this.match.state.flow.phase !== 'check' || position.member || position.index !== 0) return false;
+    if (!['attack', 'attached_attack', 'other_attack', 'end_turn'].includes(intent.kind) || this.match.state.flow.phase !== 'check' || position.member || position.index !== 0) return false;
     const zone = this.match.state.zones[position.zoneId];
     return zone?.kind === 'active' && zone.contents.items[position.index]?.kind === 'group';
+  }
+  /** 已选定且实际处理过的目标仍是原行动的目标，后续机械清理无需重复选择。 */
+  #processedTarget(position: Position): boolean {
+    const id = identity(this.match, position);
+    return Boolean(id && this.#state!.answers.some(answer => !answer.invalidated && answer.choice.kind === 'select' && answer.identities.includes(id) && answer.executed?.includes(id)));
   }
   /** 昏厥清理按同一组身份查找清理前牌面，不依赖先移叠牌还是附着卡。 */
   #knockedOut(position: Position): boolean {
@@ -974,6 +1066,7 @@ export class HumanActionController {
   #mechanical(request: ExecuteRequest, authorized: Set<string>, locations: Set<string>): { draw?: boolean; switch?: boolean; remainder?: boolean } {
     const state = this.#state!, scope = request.mechanical, command = request.command;
     if (!scope) return {};
+    if (scope.kind === 'check_state') return {};
     const effect = request.effectText;
     if (!effect || !state.effectTexts.includes(effect)) throw new ApiError('UNBOUND_MECHANICAL_EFFECT', '机械步骤必须绑定本次真实完整卡文');
     if (scope.kind === 'place') {
@@ -1059,8 +1152,11 @@ export class HumanActionController {
   /** 已选招式的纯数字主伤害属于原意图；追加说明文中的可选分配不改变该固定部分。 */
   #fixedPrimaryDamage(command: GameCommand): boolean {
     const state = this.#state!, intent = state.input.intent;
-    if (intent.kind !== 'attack' || state.sourceCard?.kind !== 'pokemon' || command.kind !== 'set_state' || command.target.kind !== 'group' || command.field.key !== 'damageCounters') return false;
-    const printed = state.sourceCard.attacks[intent.attackIndex]?.damageText.trim() ?? '';
+    if (command.kind !== 'set_state' || command.target.kind !== 'group' || command.field.key !== 'damageCounters') return false;
+    const selectedAttack = intent.kind === 'attack' && state.sourceCard?.kind === 'pokemon' ? state.sourceCard.attacks[intent.attackIndex]
+      : intent.kind === 'other_attack' && state.providerCard?.kind === 'pokemon' ? state.providerCard.attacks.find(attack => attack.name === intent.attackName) : undefined;
+    if (!selectedAttack || intent.kind !== 'attack' && intent.kind !== 'other_attack') return false;
+    const printed = selectedAttack.damageText.trim();
     if (!/^[0-9]+$/u.test(printed)) return false;
     const damage = Number(printed), targetId = state.initialIdentities[1];
     const zone = this.match.state.zones[command.target.position.zoneId], originalZone = this.match.state.zones[intent.target.zoneId];
@@ -1092,12 +1188,53 @@ export class HumanActionController {
   }
   #guard(request: ExecuteRequest): AuthorizationCommit {
     const state = this.#state!, command = request.command, playerId = state.view.playerId;
+    if (state.input.intent.kind === 'activate_effect' && !this.#meaningfulEffect()) {
+      const source = state.input.intent.source;
+      if (identity(this.match, source) !== state.providerIdentity || canonical(cardAt(this.match, playerId, source)) !== canonical(state.sourceCard)) throw new ApiError('ACTION_SOURCE_CHANGED', '效果来源已变化，请重新选择');
+    }
+    if (state.input.intent.kind === 'other_attack' && !this.#attackStarted()) {
+      const intent = state.input.intent;
+      if (identity(this.match, intent.source) !== state.initialIdentities[0] || intent.origin.kind === 'card' && identity(this.match, intent.origin.position) !== state.providerIdentity) throw new ApiError('ACTION_SOURCE_CHANGED', '原宝可梦或招式来源已变化，请重新选择');
+      if (command.kind === 'declare' && !command.text.includes(intent.attackName.trim())) throw new ApiError('WRONG_ATTACK', '必须宣告玩家指定的招式');
+      if (!['declare', 'random'].includes(command.kind)) throw new ApiError('ATTACK_DECLARATION_REQUIRED', '先核对来源与条件，宣告玩家指定的招式');
+    }
+    if (state.input.intent.kind === 'attached_attack' && !this.#attackStarted()) {
+      const intent = state.input.intent;
+      if (identity(this.match, intent.source) !== state.initialIdentities[0] || identity(this.match, intent.provider) !== state.initialIdentities[2]) throw new ApiError('ACTION_SOURCE_CHANGED', '原战斗宝可梦或附着卡已变化，不能继续使用原招式');
+    }
     const authorization: AuthorizationCommit = { quantities: [], orders: [] };
     const authorized = this.#authorized(request.choiceIds);
     const authorizedAt = (position: Position) => { const id = identity(this.match, position); return Boolean(id && authorized.has(id)); };
     const chosenLocations = state.answers.filter(answer => request.choiceIds.includes(answer.choice.id)).flatMap(answer => answer.selected.flatMap(id => { const option = answer.choice.options.find(candidate => candidate.id === id); return option?.position ? [location(option.position)] : []; }));
     const locations = new Set([...state.initialLocations, ...chosenLocations]);
-    const effect = request.effectText && state.effectTexts.includes(request.effectText) ? request.effectText : null;
+    let checkStateUse: string | null = null;
+    if (request.mechanical?.kind === 'check_state') {
+      const origin = request.mechanical.source, originZone = this.match.state.zones[origin.zoneId], originItem = at(this.match.view(playerId), origin);
+      const sourceCard = originItem?.kind === 'card' ? originItem : originItem?.kind === 'group' ? originItem.stack.at(-1) : null;
+      const target = command.kind === 'set_state' && command.target.kind === 'group' ? command.target.position : null;
+      const targetZone = target && this.match.state.zones[target.zoneId], targetId = target && identity(this.match, target);
+      if (this.match.state.flow.phase !== 'check' || !['active', 'bench', 'stadium'].includes(originZone?.kind ?? '') || sourceCard?.kind !== 'card'
+        || !request.effectText || !cardEffects(sourceCard.card).includes(request.effectText) || !target || !['active', 'bench'].includes(targetZone?.kind ?? '') || !targetId?.startsWith('group:')
+        || command.kind !== 'set_state' || command.target.kind !== 'group') throw new ApiError('INVALID_CHECK_STATE', '检查状态处理须绑定当前可见场上来源卡文与场上目标');
+      checkStateUse = checkStateKey(this.match.state, origin, command, request.effectText, request.effectStep);
+      if (!checkStateUse) throw new ApiError('INVALID_CHECK_STATE', '检查效果来源已变化');
+      if (state.checkStateUses?.includes(checkStateUse)) throw new ApiError('CHECK_STATE_ALREADY_APPLIED', '该来源的检查状态步骤已提交，不能重复执行');
+      // 旧回执可能未记录卡文：仅当来源特性唯一，且玩家当时确认的顺序明确点名该特性时，关联已提交目标。
+      if (state.recovery && sourceCard.card.kind === 'pokemon') {
+        const names = sourceCard.card.abilities.filter(ability => ability.text === request.effectText && ability.name.trim()).map(ability => ability.name);
+        const sources = this.match.view(playerId).zones.filter(zone => ['active', 'bench'].includes(zone.kind)).flatMap(zone => zone.items.flatMap(item => item?.kind === 'group' ? item.stack.slice(-1) : []))
+          .filter(item => item.kind === 'card' && item.card.kind === 'pokemon' && item.card.abilities.some(ability => names.includes(ability.name) && ability.text === request.effectText));
+        if (names.length) {
+          const legacy = committedHumanSteps(this.match, state.view.id, state.messages).some(step => step.before.flow.phase === 'check' && step.command.kind === 'set_state' && step.command.target.kind === 'group'
+            && step.command.field.key === command.field.key && identityInState(step.before, step.command.target.position) === targetId && !step.effectText
+            && state.answers.some(answer => !answer.invalidated && answer.choice.kind === 'order' && answer.resolution?.kind === 'state' && step.choiceIds.includes(answer.choice.id)
+              && answer.identities.includes(targetId) && names.some(name => answer.choice.title.includes(name))));
+          if (legacy) throw new ApiError(sources.length === 1 ? 'CHECK_STATE_ALREADY_APPLIED' : 'CHECK_STATE_AMBIGUOUS', sources.length === 1 ? '玩家已确认顺序中的该检查步骤已经提交，不能重复执行' : '已有检查步骤未记录具体来源，多个相同来源无法区分；须核对后重新请求必要选择，不能重复提交');
+        }
+      }
+      authorization.checkStateUse = checkStateUse;
+    }
+    const effect = request.effectText && (state.effectTexts.includes(request.effectText) || checkStateUse) ? request.effectText : null;
     if (request.effectText && !effect) throw new ApiError('UNBOUND_CARD_EFFECT', '额外效果必须来自本次行动实际来源卡的说明文');
     this.#effectStep(request.effectText, effectQuote(request));
     const mechanical = this.#mechanical(request, authorized, locations);
@@ -1110,10 +1247,10 @@ export class HumanActionController {
       if (!this.#handoffWorkDone()) throw new ApiError('HUMAN_ACTION_INCOMPLETE', '受托操作尚无实际处理结果，不能直接归还');
     } else if (command.kind === 'handoff') {
       const recipient = this.match.state.zones[`${command.to}:active`], bench = this.match.state.zones[`${command.to}:bench`];
-      const replacement = ['attack', 'end_turn'].includes(state.input.intent.kind) && recipient?.contents.items[0] === null && Boolean(bench?.contents.items.some(Boolean));
+      const replacement = ['attack', 'attached_attack', 'other_attack', 'end_turn'].includes(state.input.intent.kind) && recipient?.contents.items[0] === null && Boolean(bench?.contents.items.some(Boolean));
       if (command.returning || !replacement && !this.#cleanupAllowsHandoff(command.to) && (!effect || !/对手|对方|双方/.test(effect))) throw new ApiError('OUTSIDE_HUMAN_INTENT', '当前行动没有需要交给该席位处理的卡文或结算记录');
     }
-    if (command.kind === 'set_turn' && !['attack', 'end_turn'].includes(state.input.intent.kind)) throw new ApiError('OUTSIDE_HUMAN_INTENT', '当前行动不能自行结束回合');
+    if (command.kind === 'set_turn' && !['attack', 'attached_attack', 'other_attack', 'end_turn'].includes(state.input.intent.kind)) throw new ApiError('OUTSIDE_HUMAN_INTENT', '当前行动不能自行结束回合');
     if (command.kind === 'set_turn' && command.phase === 'turn') {
       this.#validateChoices();
       if (this.match.state.flow.phase !== 'check') throw new ApiError('CHECK_REQUIRED', '交给下一回合前必须先进入并完成宝可梦检查');
@@ -1121,13 +1258,14 @@ export class HumanActionController {
         if (!effect || !/额外.{0,8}回合|再(?:进行|开始).{0,8}回合/.test(effect)) throw new ApiError('INVALID_NEXT_TURN', '完成检查后必须交给对手；额外回合须有本次实际卡文明确授权');
         authorization.extraTurn = true;
       }
-      if (state.input.intent.kind === 'attack' && !this.#attackStarted()) throw new ApiError('HUMAN_ACTION_INCOMPLETE', '尚未执行本次指定招式，不能直接跳到下一回合');
+      if (['attack', 'attached_attack', 'other_attack'].includes(state.input.intent.kind) && !this.#attackStarted()) throw new ApiError('HUMAN_ACTION_INCOMPLETE', '尚未执行本次指定招式，不能直接跳到下一回合');
     }
     if (command.kind === 'set_state' && (command.target.kind === 'group' || command.target.kind === 'card') && !authorizedAt(command.target.position)) {
       const item = at(this.match.view(playerId), command.target.position);
       const ownEffects = item?.kind === 'group' ? [...item.stack.slice(-1), ...item.attached].flatMap(member => member.kind === 'card' ? turnStartTexts(member.card) : []) : item?.kind === 'card' ? turnStartTexts(item.card) : [];
       const forcedStart = state.input.intent.kind === 'turn_start' && Boolean(effect && ownEffects.includes(effect) && /这只宝可梦|此宝可梦|自身|附有此卡的宝可梦/u.test(effect) && !/选择|任意|最多|至多|可以|可选择/u.test(effect));
-      const mandatory = forcedStart || this.#checkTarget(command.target.position) && item?.kind === 'group' && (command.field.key === 'damageCounters' && item.state.specialConditions.some(condition => ['poisoned', 'burned'].includes(condition)) && command.field.value >= item.state.damageCounters
+      const sourceState = state.input.intent.kind === 'activate_effect' && Boolean(effect) && identity(this.match, command.target.position) === state.providerIdentity;
+      const mandatory = Boolean(checkStateUse) || sourceState || forcedStart || this.#checkTarget(command.target.position) && item?.kind === 'group' && (command.field.key === 'damageCounters' && item.state.specialConditions.some(condition => ['poisoned', 'burned'].includes(condition)) && command.field.value >= item.state.damageCounters
         || command.field.key === 'specialConditions' && command.field.value.every(condition => item.state.specialConditions.includes(condition)));
       if (!mandatory) throw new ApiError('UNCONFIRMED_TARGET', '状态目标尚未由人选择；检查授权仅限双方战斗宝可梦的必要伤害和已有特殊状态处理');
     }
@@ -1147,13 +1285,14 @@ export class HumanActionController {
     if (command.kind === 'random') {
       const intent = state.input.intent;
       const source = 'source' in intent && intent.source ? at(this.match.view(playerId), intent.source) : null;
-      const checking = ['attack', 'end_turn'].includes(intent.kind) && this.match.state.flow.phase === 'check' && this.match.view(playerId).zones.some(zone => zone.kind === 'active' && zone.items.some(item => item?.kind === 'group' && item.state.specialConditions.some(condition => ['asleep', 'burned'].includes(condition))));
-      const inherent = command.mode === 'coins' && command.count === 1 && (intent.kind === 'attack' && this.match.state.flow.phase === 'turn' && source?.kind === 'group' && source.state.specialConditions.includes('confused') || checking);
+      const checking = ['attack', 'attached_attack', 'other_attack', 'end_turn'].includes(intent.kind) && this.match.state.flow.phase === 'check' && this.match.view(playerId).zones.some(zone => zone.kind === 'active' && zone.items.some(item => item?.kind === 'group' && item.state.specialConditions.some(condition => ['asleep', 'burned'].includes(condition))));
+      const inherent = command.mode === 'coins' && command.count === 1 && (['attack', 'attached_attack', 'other_attack'].includes(intent.kind) && this.match.state.flow.phase === 'turn' && source?.kind === 'group' && source.state.specialConditions.includes('confused') || checking);
       if (!inherent && (!effect || !/硬币|随机|正面|反面/.test(effect))) throw new ApiError('UNBOUND_CARD_EFFECT', '随机操作必须属于当前卡文或必要检查');
       if (!inherent || request.effectStep || request.choiceIds.some(id => state.answers.some(answer => answer.choice.id === id && answer.choice.kind === 'number'))) this.#quantity(request, this.#quantityScope(command)!, command.count, !inherent, authorization);
     }
     if (command.kind === 'create_group' && (command.destination.container.kind !== 'zone' || !locations.has(`${command.destination.container.zoneId}/${command.destination.index}`))) throw new ApiError('UNCONFIRMED_TARGET', '放置位置尚未由人选择');
-    if (command.kind === 'remove_group' && !authorizedAt(command.position) && !locations.has(location(command.position)) && !this.#checkTarget(command.position)) throw new ApiError('UNCONFIRMED_TARGET', '移除目标不属于当前行动');
+    if (command.kind === 'remove_group' && !authorizedAt(command.position) && !locations.has(location(command.position)) && !this.#checkTarget(command.position)
+      && !(this.#processedTarget(command.position) && this.#knockedOut(command.position))) throw new ApiError('UNCONFIRMED_TARGET', '移除目标不属于当前行动');
     if (command.kind === 'move' || command.kind === 'look' || command.kind === 'show' || command.kind === 'shuffle') {
       const selection: Selection = command.kind === 'move' ? command.source : command.selection;
       const container = selection.container;
@@ -1163,6 +1302,12 @@ export class HumanActionController {
       if ((command.kind === 'look' || command.kind === 'show') && zone.playerId && zone.playerId !== playerId && (!effect || !/对手|对方|双方/.test(effect))) throw new ApiError('HIDDEN_INFORMATION', '本次卡文没有授权查看或展示对方隐藏区域', 403);
       if (command.kind === 'look' && (!effect || !(/查看|看|翻开|翻出/.test(effect) || /牌库|手牌|奖赏卡/.test(effect) && /选择|检索|找出|搜寻/.test(effect)))) throw new ApiError('UNBOUND_CARD_EFFECT', '查看隐藏牌必须由当前卡文明确授权');
       const selected = resolveSelection(this.match.state, selection);
+      // 所选附着来源的固定收尾须由代理按完整卡文决定；只允许该卡进入其持有者弃牌区。
+      if (command.kind === 'move' && state.input.intent.kind === 'other_attack' && this.#attackStarted() && effect && state.providerCard && cardEffects(state.providerCard).includes(effect)
+        && state.input.intent.origin.kind === 'card' && state.input.intent.origin.position.member?.relation === 'attached'
+        && state.input.intent.origin.position.zoneId === state.input.intent.source.zoneId && state.input.intent.origin.position.index === state.input.intent.source.index
+        && selected.length === 1 && selected[0]?.kind === 'card' && `card:${selected[0].id}` === state.providerIdentity
+        && command.destination.container.kind === 'zone' && command.destination.container.zoneId === `${this.match.state.cards[selected[0].id]?.ownerId}:discard`) authorized.add(state.providerIdentity);
       if (command.kind === 'shuffle' && (!effect || !/洗|打乱/.test(effect))) throw new ApiError('UNBOUND_CARD_EFFECT', '洗牌必须属于本次卡文的必要处理');
       if (command.kind === 'move' || command.kind === 'show') {
         const starting = state.input.intent.kind === 'turn_start';
@@ -1171,7 +1316,7 @@ export class HumanActionController {
         const blindDraw = command.kind === 'move' && (zoneId === `${playerId}:deck` || mechanical.draw) && command.destination.container.kind === 'zone' && (command.destination.container.zoneId === `${zone.playerId}:hand` || starting && command.destination.container.zoneId === `${playerId}:staging`) && selection.range.mode === 'range' && selection.range.start === 0 && !chosenCards;
         if (blindDraw && (state.input.intent.kind === 'draw' || starting) && this.#movements().some(item => item.command.source.container.kind === 'zone' && item.command.source.container.zoneId === `${playerId}:deck`)) throw new ApiError('HUMAN_ACTION_ALREADY_APPLIED', '本次抽牌已经执行，不能重复抽取');
         const mechanicalDraw = mechanical.draw || blindDraw && ((state.input.intent.kind === 'draw' || starting) && selected.length === 1 || Boolean(effect && /抽|补充手牌/.test(effect)));
-        const knockoutCleanup = command.kind === 'move' && container.kind === 'group' && (authorizedAt(container.position) || this.#checkTarget(container.position)) && this.#knockedOut(container.position) && command.destination.container.kind === 'zone' && command.destination.container.zoneId === `${zone.playerId}:discard`;
+        const knockoutCleanup = command.kind === 'move' && container.kind === 'group' && (authorizedAt(container.position) || this.#checkTarget(container.position) || this.#processedTarget(container.position)) && this.#knockedOut(container.position) && command.destination.container.kind === 'zone' && command.destination.container.zoneId === `${zone.playerId}:discard`;
         const wholeContainer = selection.range.mode === 'all' && (knockoutCleanup || Boolean(effect && /所有|全部|整副|整叠|整手/.test(effect)));
         if (blindDraw && !mechanicalDraw) throw new ApiError('OUTSIDE_HUMAN_INTENT', '当前行动没有授权额外抽牌');
         const subsetChoices = state.answers.filter(answer => !answer.invalidated && answer.choice.kind !== 'number' && answer.identities.length && (request.choiceIds.includes(answer.choice.id)
@@ -1195,7 +1340,9 @@ export class HumanActionController {
         if (destination.kind === 'group' && !authorizedAt(destination.position) && !locations.has(location(destination.position))) throw new ApiError('UNCONFIRMED_TARGET', '附着或进化目标尚未由人选择');
         if (destination.kind === 'zone') {
           const target = this.match.state.zones[destination.zoneId];
-          if (!target || target.contents.layout === 'slots' && (command.destination.index === 'end' || !locations.has(`${destination.zoneId}/${command.destination.index}`))) throw new ApiError('UNCONFIRMED_TARGET', '放置目标尚未由人选择');
+          const fixedPublicSlot = target?.playerId === null && target.defaultVisibility.mode === 'public' && target.contents.layout === 'slots'
+            && target.contents.items.length === 1 && target.contents.items[0] === null && command.destination.index === 0;
+          if (!target || target.contents.layout === 'slots' && !fixedPublicSlot && (command.destination.index === 'end' || !locations.has(`${destination.zoneId}/${command.destination.index}`))) throw new ApiError('UNCONFIRMED_TARGET', '放置目标尚未由人选择');
           if (zone.kind === 'bench' && target.kind === 'active' && state.input.intent.kind !== 'retreat' && !mechanical.switch) {
             const humanChosen = new Set(state.answers.filter(answer => request.choiceIds.includes(answer.choice.id)).flatMap(answer => answer.identities));
             const explicitPromotion = state.input.intent.kind === 'resolve_handoff' && state.input.intent.source ? state.initialIdentities[0] : null;
@@ -1218,6 +1365,16 @@ export class HumanActionController {
     }
     if (receipt.status === 'committed') {
       state.failures = 0;
+      if (pending.command.kind === 'move') {
+        const index = this.match.records.findIndex(record => record.event?.A.id === receipt.eventId);
+        const before = this.match.records[index - 1]?.state;
+        // 只追踪已查看的稳定身份在原区域内的确定位置变化；未知牌、跨区移动和旧许可都不补造。
+        state.revealed = before ? state.revealed.flatMap(reveal => {
+          if (reveal.stamp !== zoneStampInState(before, reveal.position.zoneId) || identityInState(before, reveal.position) !== reveal.identity) return [];
+          const next = positionOfIdentity(this.match.state, reveal.identity);
+          return next && next.zoneId === reveal.position.zoneId ? [{ ...reveal, position: next, stamp: zoneStamp(this.match, next.zoneId) }] : [];
+        }) : [];
+      }
       const visit = (value: unknown) => {
         if (Array.isArray(value)) { value.forEach(visit); return; }
         const item = field(value);
@@ -1244,6 +1401,7 @@ export class HumanActionController {
         if (answer) answer.orderDestination = binding.destination;
       }
       if (pending.authorization?.extraTurn) state.extraTurnGranted = true;
+      if (pending.authorization?.checkStateUse && !state.checkStateUses?.includes(pending.authorization.checkStateUse)) (state.checkStateUses ??= []).push(pending.authorization.checkStateUse);
       for (const use of pending.authorization?.steps ?? []) if (!state.effectStepUses?.includes(use)) (state.effectStepUses ??= []).push(use);
       this.#recordChoiceUses(pending.authorization?.choices ?? []);
       this.#restoreQuantityUses();
@@ -1322,7 +1480,7 @@ export class HumanActionController {
           if (await this.#continueRecovery('连续执行被拒绝，需要重新审查整段结算及恢复点')) continue;
           throw new ApiError('CONSECUTIVE_FAILURE_LIMIT', '连续三次执行失败，已保留现场；可重试修正或手动调整');
         }
-        if (this.match.state.flow.phase === 'finished' || state.input.intent.kind === 'resolve_handoff' && this.#returned() || ['attack', 'end_turn'].includes(state.input.intent.kind) && this.#turnEnded()) {
+        if (this.match.state.flow.phase === 'finished' || state.input.intent.kind === 'resolve_handoff' && this.#returned() || ['attack', 'attached_attack', 'other_attack', 'end_turn'].includes(state.input.intent.kind) && this.#turnEnded()) {
           this.#validateCompletion();
           state.view.status = 'completed'; this.#unlock(); await this.#save(); this.options.wake(); return;
         }
@@ -1393,6 +1551,7 @@ export class HumanActionController {
             if (state.view.status !== 'running') return;
           } else {
             const receipt = await this.match.execute({ matchId: this.match.state.id, playerId: state.view.playerId, requestId: uid(), revision: this.match.state.revision, tool: call.name, arguments: asJson(args) });
+            if (call.name === 'read_history' && state.input.intent.kind === 'other_attack' && state.input.intent.origin.kind === 'description') for (const effect of historyCardEffects(receipt, state.input.intent.origin.text.trim(), state.input.intent.attackName.trim())) if (effect && !state.effectTexts.includes(effect)) state.effectTexts.push(effect);
             state.messages.push({ type: 'function_call_output', call_id: call.callId, output: JSON.stringify(receipt) }); await this.#save();
           }
         } catch (error) {

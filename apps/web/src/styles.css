@@ -2732,3 +2732,7 @@ fieldset.form-grid {
 }
 .evaluation-run > span { flex: 1; }
 .evaluation-records .match-row { width: 100%; }
+.inspector-use-form { display: grid; gap: 8px; margin-top: 12px; }
+.inspector-use-form label { display: grid; gap: 4px; }
+.inspector-use-form input, .inspector-use-form select { width: 100%; min-width: 0; }
+.inspector-use-form > div { display: flex; gap: 8px; }
