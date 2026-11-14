@@ -1,5 +1,5 @@
 import type { ModelItem } from '../../../packages/agent/src/index.ts';
-import type { GameCommand, GameState } from '../../../packages/protocol/src/index.ts';
+import type { GameCommand, GameState, Position } from '../../../packages/protocol/src/index.ts';
 import type { MatchRecord, MatchRuntime } from './match.ts';
 import { canonical } from './storage.ts';
 
@@ -8,6 +8,7 @@ export interface CommittedHumanStep {
   choiceIds: string[];
   effectText?: string;
   effectStep?: string;
+  mechanical?: { kind: 'check_state'; source: Position };
   record: MatchRecord;
   before: GameState;
 }
@@ -53,6 +54,7 @@ export function committedHumanSteps(match: Pick<MatchRuntime, 'records' | 'meta'
       choiceIds: [...request.choiceIds] as string[],
       ...(typeof request.effectText === 'string' ? { effectText: request.effectText } : {}),
       ...(typeof stepQuote === 'string' ? { effectStep: stepQuote } : {}),
+      ...(mechanical?.kind === 'check_state' && object(mechanical.source) ? { mechanical: { kind: 'check_state' as const, source: mechanical.source as Position } } : {}),
     };
     const binding = canonical(metadata), previous = accepted.get(receipt.eventId);
     // 同一事实的重复回执不重复消费；相互矛盾的选择绑定没有可恢复的唯一解释。

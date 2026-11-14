@@ -32,13 +32,27 @@ export function PokemonFocus({ object, view, enabled, onIntent, onInspectMember,
 }) {
   const card = pokemonOf(object)!;
   const [retreating, setRetreating] = useState(false);
+  const [otherAttack, setOtherAttack] = useState(false);
+  const [attackName, setAttackName] = useState("");
+  const [originKey, setOriginKey] = useState("");
+  const [originText, setOriginText] = useState("");
+  const revisionRef = useRef(view.revision);
+  const otherButton = useRef<HTMLButtonElement>(null);
+  const returnToOtherButton = useRef(false);
   const panel = useRef<HTMLElement>(null);
   const closeRef = useRef(close); closeRef.current = close;
   const zone = view.zones.find(zone => zone.id === object.position.zoneId);
   const own = zone?.playerId === view.viewer && view.players.some(player => player.id === view.viewer && player.kind === "human") && !view.replay;
+  const canTrigger = view.viewer !== "omniscient" && view.players.some(player => player.id === view.viewer && player.kind === "human") && !view.replay;
   const active = zone?.kind === "active";
   const locked = !enabled || !own;
   const bench = view.zones.find(zone => zone.kind === "bench" && zone.playerId === view.viewer)?.items.filter((item): item is GroupView => item?.kind === "group") ?? [];
+  const sources = view.zones.flatMap(zone => zone.items.flatMap(item => item?.kind === "card" ? [item] : item?.kind === "group" ? [...item.stack, ...item.attached].filter(member => member.kind === "card") : []));
+  const selectedSource = sources.find(item => positionKey(item.position) === originKey);
+  const target = view.zones.find(zone => zone.kind === "active" && zone.playerId !== view.viewer)?.items.find(item => item?.kind === "group")?.position;
+  const readyOther = Boolean(!locked && active && target && attackName.trim() && (selectedSource || originKey === "description" && originText.trim()));
+  function closeOtherAttack() { returnToOtherButton.current = true; setOtherAttack(false); }
+  useEffect(() => { if (!otherAttack && returnToOtherButton.current) { returnToOtherButton.current = false; otherButton.current?.focus({ preventScroll: true }); } }, [otherAttack]);
   useEffect(() => {
     const previous = document.activeElement;
     const element = panel.current;
@@ -57,12 +71,13 @@ export function PokemonFocus({ object, view, enabled, onIntent, onInspectMember,
     const escape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
-      if (retreating) setRetreating(false); else closeRef.current();
+      if (otherAttack) closeOtherAttack(); else if (retreating) setRetreating(false); else closeRef.current();
     };
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
-  }, [retreating]);
-  useEffect(() => { if (locked) setRetreating(false); }, [locked]);
+  }, [retreating, otherAttack]);
+  useEffect(() => { if (locked) { setRetreating(false); setOtherAttack(false); } }, [locked]);
+  useEffect(() => { if (revisionRef.current !== view.revision) { revisionRef.current = view.revision; setOriginKey(""); setOriginText(""); } }, [view.revision]);
   function useAction(kind: "attack" | "ability", index: number) {
     if (locked) return;
     const intent = pokemonIntent(view, object.position, kind, index);
@@ -80,7 +95,29 @@ export function PokemonFocus({ object, view, enabled, onIntent, onInspectMember,
           <div className="pokemon-traits"><span>弱点 {card.weaknesses.map(item => `${item.type}${item.modifier}`).join(" ") || "无"}</span><span>抗性 {card.resistances.map(item => `${item.type}${item.modifier}`).join(" ") || "无"}</span><span>撤退 {card.retreatCost}</span></div>
         </div>
         <div className="pokemon-action-list">
-          {retreating ? <section className="pokemon-retreat-targets" aria-label="选择换上的宝可梦">
+          {otherAttack ? <form className="pokemon-other-attack" aria-label="使用其他招式" onSubmit={event => {
+            event.preventDefault();
+            if (!readyOther || !target) return;
+            const origin = selectedSource ? { kind: "card" as const, position: selectedSource.position } : { kind: "description" as const, text: originText.trim() };
+            onIntent({ kind: "other_attack", source: object.position, target, attackName: attackName.trim(), origin });
+          }}>
+            <h3>使用其他招式</h3>
+            <label>招式名称<input autoFocus maxLength={200} value={attackName} onChange={event => setAttackName(event.target.value)} /></label>
+            <label>来源<select value={originKey} onChange={event => setOriginKey(event.target.value)}>
+              <option value="">选择来源</option>
+              {sources.map(item => <option key={positionKey(item.position)} value={positionKey(item.position)}>{item.card.name} · {positionLabel(item.position)}</option>)}
+              <option value="description">其他来源</option>
+            </select></label>
+            {originKey === "description" && <label>来源卡名称<input maxLength={500} value={originText} onChange={event => setOriginText(event.target.value)} /></label>}
+            {selectedSource && <div className="pokemon-other-source">
+              {selectedSource.card.kind === "pokemon" ? <>
+                {selectedSource.card.abilities.map((ability, index) => <p key={`ability-${index}`}><b>{ability.name}</b>{"\n"}{ability.text}</p>)}
+                {selectedSource.card.attacks.map((attack, index) => <p key={`attack-${index}`}><b>{attack.name}</b>{" · "}{attack.energyCost.map(item => `${item.type} ×${item.count}`).join("、") || "无能量要求"}{attack.damageText && ` · ${attack.damageText}`}{"\n"}{attack.text}</p>)}
+              </> : selectedSource.card.text && <p>{selectedSource.card.text}</p>}
+              {selectedSource.card.rulesText && <p>{selectedSource.card.rulesText}</p>}
+            </div>}
+            <div><Button type="button" onClick={closeOtherAttack}>返回</Button><Button type="submit" disabled={!readyOther}>使用</Button></div>
+          </form> : retreating ? <section className="pokemon-retreat-targets" aria-label="选择换上的宝可梦">
             <header><h3>选择换上的宝可梦</h3><Button onClick={() => setRetreating(false)}>返回</Button></header>
             {bench.map(target => <button type="button" className="pokemon-retreat-target" key={positionKey(target.position)} onClick={() => {
               if (!locked) onIntent({ kind: "retreat", source: object.position, target: target.position });
@@ -96,6 +133,8 @@ export function PokemonFocus({ object, view, enabled, onIntent, onInspectMember,
               return own && active ? <button type="button" className="pokemon-action attack-action" disabled={locked || !pokemonIntent(view, object.position, "attack", index)} key={`attack-${index}`} aria-label={`使用招式${attack.name}`} onClick={() => useAction("attack", index)}>{content}</button>
                 : <section className="pokemon-action is-readonly" key={`attack-${index}`}>{content}</section>;
             })}
+            {canTrigger && <button type="button" className="pokemon-retreat" disabled={!enabled} onClick={() => onIntent({ kind: "activate_effect", source: object.position })}>使用效果</button>}
+            {own && active && <button ref={otherButton} type="button" className="pokemon-retreat" disabled={locked || !target} onClick={() => { setAttackName(""); setOriginKey(""); setOriginText(""); setOtherAttack(true); }}>使用其他招式</button>}
             {own && active && <button type="button" className="pokemon-retreat" disabled={locked || !bench.length} onClick={() => setRetreating(true)}><Cost items={card.retreatCost ? [{ type: "无色", count: card.retreatCost }] : []} /><span>撤退</span></button>}
             {card.rulesText && <p className="pokemon-rules">{card.rulesText}</p>}
             {!!members.length && <details className="pokemon-members"><summary>叠牌与附着 {members.length}</summary><div>{members.map(member => <button type="button" key={positionKey(member.position)} onClick={() => onInspectMember(member)}>{member.kind === "card" ? member.card.name : "隐藏卡牌"}<small>{member.position.member?.relation === "attached" ? "附着" : "叠牌"}</small></button>)}</div></details>}

@@ -36,7 +36,7 @@ test('前端提交 API Key 只写独立本地凭证；读取与配置快照不�
   if (saved.connection.kind !== 'openai_compatible') throw new Error('unexpected connection');
   assert.ok(saved.connection.apiKeyFile);
   assert.equal(JSON.parse(await readFile(saved.connection.apiKeyFile, 'utf8')).apiKey, key);
-  assert.equal((await stat(saved.connection.apiKeyFile)).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.equal((await stat(saved.connection.apiKeyFile)).mode & 0o777, 0o600);
   assert.ok(!JSON.stringify(JSON.parse(await readFile(join(dir, 'system', 'agent.json'), 'utf8'))).includes(key));
   const read = await app.inject('/api/settings/model'); assert.equal(read.json<ModelSettings>().apiKeyConfigured, true); assert.ok(!read.body.includes(key));
   const { apiKeyConfigured: _configured, ...again } = read.json<ModelSettings>();

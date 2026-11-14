@@ -120,5 +120,5 @@ test('恢复点之前确认的盲奖赏原槽位保持有效，仍不显示隐�
   await fixture.select('prize'); await fixture.settle('failed');
   await fixture.controller.control(action.id, { playerId: 'A', action: 'retry' }); await fixture.settle();
   assert.equal(captured?.invalidated, false);
-  assert.deepEqual(captured.selected, [{ id: 'prize', label: 'A:prizes 第 3 位', position: { zoneId: 'A:prizes', index: 2 } }]);
+  assert.deepEqual(captured.selected, [{ id: 'prize', label: 'A:prizes 第 3 位', position: { zoneId: 'A:prizes', index: 2 }, cardShown: false }]);
 });

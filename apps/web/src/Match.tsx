@@ -879,6 +879,9 @@ export function Match({ id, back }: { id: string; back: () => void }) {
                 <ObjectInspector
                   object={inspected}
                   pinned={Boolean(inspecting)}
+                  actionView={view}
+                  actionEnabled={Boolean(canOperate && !busy && !executionLocked && !manualMode && !handoffMode && replay === null)}
+                  onIntent={intent => void beginHuman(intent)}
                   close={() => {
                     setInspecting(null);
                     setPreviewing(null);

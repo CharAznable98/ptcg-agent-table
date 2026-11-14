@@ -341,7 +341,9 @@ test('自动单方重抽等待对手先摆放，并公开失败手牌再一次�
 test('SSE 无需凭证，按指定视角推送历史观察和状态失效通知',async t=>{
   const {app}=await setup(t); const game=await create(app); const address=await app.listen({host:'127.0.0.1',port:0}); const controller=new AbortController();
   const response=await fetch(`${address}/api/matches/${game.match.id}/events?viewer=A`,{signal:controller.signal}); assert.equal(response.status,200); const reader=response.body!.getReader();
-  const first=await reader.read(); assert.match(new TextDecoder().decode(first.value),/event: observation/); assert.match(new TextDecoder().decode(first.value),/event: change/); controller.abort(); await reader.cancel().catch(()=>{});
+  const decoder=new TextDecoder(); let received=''; const timeout=setTimeout(()=>controller.abort(),5000);
+  try { while(!received.includes('event: observation') || !received.includes('event: change')) { const part=await reader.read(); assert.equal(part.done,false,'流结束前应包含两种事件'); received+=decoder.decode(part.value,{stream:true}); } }
+  finally { clearTimeout(timeout); controller.abort(); await reader.cancel().catch(()=>{}); }
   assert.equal((await app.inject({url:`/api/matches/${game.match.id}`,headers:{origin:'https://untrusted.example'}})).headers['access-control-allow-origin'],undefined);
 });
 test('agent 观察与历史只发送紧凑增量，保留已获牌面与流程',async t=>{
